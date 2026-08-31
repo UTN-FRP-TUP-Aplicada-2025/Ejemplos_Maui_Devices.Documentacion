@@ -197,6 +197,9 @@ Contraste clave: **CI compila iOS/simulador; los scripts locales despliegan a An
 | `Ejemplo_Photo_MediaPicker_launch.bat` | `Ejemplos_Devices/scripts/` | Igual patrón para `Camera\Ejemplo_Photo_MediaPicker.csproj` (nota: el banner `echo` aún dice "Ejemplo_Maui_GPS" por copy/paste) | script:6, 23 |
 | `GetEnviromentVersion.bat` | `Ejemplos_Devices/scripts/` | `dotnet --version` + `dotnet workload list --verbosity detailed` | script:1-3 |
 | `vs.bat` | raíz del repo | `code .` (abre VS Code en el repo) | `vs.bat:1` |
+| `Ejemplos_Devices.slnLaunch` | `Ejemplos_Devices/` | Perfil de arranque múltiple de Visual Studio **«Hibrida-Con-WS»**: lanza a la vez `Integrada/Ejemplo_Maui_Hibrida` (target `Motorola moto g42 (Android 13.0 - API 33)`) y `Integrada/Ejemplo_ws_Blazor` (target `https`) — es la forma de correr la híbrida contra su backend local | `Ejemplos_Devices.slnLaunch:1-16` |
+
+> El `.slnLaunch` está **sin versionar** (archivo *untracked*, no ignorado por `.gitignore`) y su `DebugTarget` de Android nombra un dispositivo concreto: es configuración local de la máquina de desarrollo, no del repo. Se indexa por documentar el par de proyectos que la app híbrida necesita en simultáneo (índice 08).
 
 - Patrón `.bat` de deploy: `SCRIPT_DIR=%~dp0` para ruta relativa al `.csproj`; `EnableDelayedExpansion`; agrega `platform-tools` (`adb.exe`) al `PATH`; si no hay dispositivo conectado, aborta con `[ERROR]`.
 - Doc asociada: `Ejemplos_Devices/Docs/otros/GetEnviromentVersion.md` (prerequisitos: 7-Zip, NuGets, `dotnet sdk check`) — se detalla en el índice 10.

@@ -1,6 +1,6 @@
 # Changelog
 
-Cambios notables de la documentación de `Ejemplos_Maui_Devices` (`Ejemplos_Maui_Devices.Documentos`).
+Cambios notables de la documentación de `Ejemplos_Maui_Devices` (`Ejemplos_Maui_Devices.Documentacion`).
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
 ## [2026-07-23] — ia-db v1.6: los dos modos de `CommandDelivery` del GPS + namespaces `LibApp.*`
@@ -170,7 +170,7 @@ aislados de GPS/Red/Telefonía no se tocaron.
 - **ADR-0009** (`docs/04-decisions/`): cierre determinista del overlay GPS (Opción A) y
   cancelación robusta del puente de navegación; decisión *de diseño*, validada en dispositivo
   real (moto_g42, Android).
-- **`README.md` de la carpeta `.Documentos`**: portada con las dos puertas de entrada
+- **`README.md` de la carpeta `.Documentacion`**: portada con las dos puertas de entrada
   (conjunto documental para *entender*, `ia-db` para *ubicar*), atajos a lo más consultado y
   el aviso de la API key de Google Maps hardcodeada.
 - **`Analisis/Plan-Armonizacion-Overlays.md`**: plan verificable de la armonización, ya

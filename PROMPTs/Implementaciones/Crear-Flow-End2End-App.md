@@ -1,7 +1,7 @@
 # Tool-Prompt — Diseñar un Flujo End2End de una App (dedo virtual Maestro)
 
 > **Invocación**:
-> - `Lee y ejecuta Ejemplos_Maui/Ejemplos_Maui_Devices.Documentos/PROMPTs/Implementar/Crear-Flow-End2End-App.md`
+> - `Lee y ejecuta Ejemplos_Maui/Ejemplos_Maui_Devices.Documentacion/PROMPTs/Implementaciones/Crear-Flow-End2End-App.md`
 > - Parámetros (opcionales; si faltan, el prompt los infiere o los pregunta):
 >   - `PROYECTO` — carpeta del proyecto MAUI (p.ej. `Ejemplos_Devices/Integrada/Ejemplo_Maui_Hibrida`)
 >   - `PACKAGE_NAME` — bundle/applicationId (p.ej. `com.ejemplos.devices.integrada.hibrida`)
@@ -14,8 +14,8 @@
 Este proyecto ya tiene una técnica de prueba **end2end sobre la UI real** de la app, montada en CI. Antes de diseñar nada, entendé las piezas existentes:
 
 - **Base de conocimiento (leer primero, no releer todo el repo):**
-  - `/Ejemplos_Maui/Ejemplos_Maui_Devices.Documentos/ia-db/README.md` → índice **09 (CI/CD y build)** y **08 (App híbrida integrada)**.
-  - `/Ejemplos_Maui/Ejemplos_Maui_Devices.Documentos/Ejemplos_Maui_Devices-docs/README.md` → sección **End2End / dedo virtual**.
+  - `/Ejemplos_Maui/Ejemplos_Maui_Devices.Documentacion/ia-db/README.md` → índice **09 (CI/CD y build)** y **08 (App híbrida integrada)**.
+  - `/Ejemplos_Maui/Ejemplos_Maui_Devices.Documentacion/Ejemplos_Maui_Devices-docs/README.md` → sección **End2End / dedo virtual**.
 - **Piezas de la técnica actual (fuente de verdad):**
   1. App bajo prueba: un proyecto MAUI (referencia: `Ejemplos_Devices/Integrada/Ejemplo_Maui_Hibrida`).
   2. Workflow CI: `.github/workflows/cd-ios-Integrada.Ejemplo_Maui_Hibrida.yml` — compila para el **simulador iOS** (ad-hoc, sin firma real), instala Maestro y llama al script de simulación.

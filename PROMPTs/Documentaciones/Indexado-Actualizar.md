@@ -1,1 +1,1 @@
-Lee y ejecuta `/IA/IA.Prompts/Tool-Prompts/Indexado/Actualizar-Indexado.md` de `/Ejemplos_Maui/Ejemplos_Maui_Devices.Documentos`
+Lee y ejecuta `/IA/IA.Prompts/Tool-Prompts/Indexado/Actualizar-Indexado.md` de `/Ejemplos_Maui/Ejemplos_Maui_Devices.Documentacion`

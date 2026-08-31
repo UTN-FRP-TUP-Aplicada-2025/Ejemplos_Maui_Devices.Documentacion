@@ -16,7 +16,7 @@ classification: uso-interno
 
 # ADR-0009: Cierre determinista del overlay GPS (Opción A) y cancelación robusta del puente de navegación
 
-> Decisión **de diseño** (no reverse-engineered) tomada a partir del análisis de comportamiento manual `Ejemplos_Maui_Devices.Documentos/PROMPTs/Analisis-Comportamiento-Software-02.md` y **validada en dispositivo real** (moto_g42, Android). Corrige tres defectos observados en la página Blazor `/Panel` desde la app híbrida.
+> Decisión **de diseño** (no reverse-engineered) tomada a partir del análisis de comportamiento manual `Ejemplos_Maui_Devices.Documentacion/PROMPTs/Comportamientos/Analisis-Comportamiento-Software-02.md` y **validada en dispositivo real** (moto_g42, Android). Corrige tres defectos observados en la página Blazor `/Panel` desde la app híbrida.
 >
 > **Nota de revisión (v2.1.0):** la v1 adoptó la *Opción B* (mantener el busy hasta `Navigated`); la validación en dispositivo la **rechazó** (colgaba el overlay), y la v2 pasó a la **Opción A** (§D3). La validación siguió mostrando que **entregar la coordenada re-navegando** recargaba la página y no la mostraba ante coordenada idéntica; la v2.1 agrega **D4** (entrega por inyección JS, igual que cámara/QR/API). Se conserva el registro del descarte de B por trazabilidad.
 
@@ -142,7 +142,7 @@ Verificado en dispositivo: entregar la coordenada **re-navegando** (`Url = next`
 
 ## Evidencia
 
-- Análisis origen: `Ejemplos_Maui_Devices.Documentos/PROMPTs/Analisis-Comportamiento-Software-02.md`
+- Análisis origen: `Ejemplos_Maui_Devices.Documentacion/PROMPTs/Comportamientos/Analisis-Comportamiento-Software-02.md`
 - Código: `Ejemplos_Devices/Integrada/Ejemplo_Maui_Hibrida/ViewModels/MainViewModel.cs`, `LibApp/UrlCommands/Handlers/GpsCommandHandler.cs`, `LibApp/Devices/GPS/ViewModels/GpsOverlayViewModel.cs`, `LibApp/Devices/GPS/Services/GpsService.cs`
 - ia-db: [índice 08 — App híbrida integrada](../../../ia-db/indexes/08_App-Hibrida-Integrada.md)
 - Relacionados: [ADR-0003 — Puente WebView por comandos URL](0003-puente-webview-comandos-url.md) · [ADR-0002 — Servicio tipado + overlay MVVM](0002-servicio-tipado-overlay-mvvm.md) · [overlays por dispositivo](../01-architecture/07-overlays-dispositivos.md)

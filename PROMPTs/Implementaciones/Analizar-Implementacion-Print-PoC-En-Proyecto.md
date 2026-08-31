@@ -1,14 +1,14 @@
 # Tool-Prompt — Analizar implementación PoC en Producción
 
 > **Invocación**:
-> - `Lee y ejecuta /Ejemplos_Maui/Ejemplos_Maui_Devices.Documentos/PROMPTs/Implementar/Analizar-Implementacion-Print-PoC-En-Proyecto.md`
+> - `Lee y ejecuta /Ejemplos_Maui/Ejemplos_Maui_Devices.Documentacion/PROMPTs/Implementaciones/Analizar-Implementacion-Print-PoC-En-Proyecto.md`
 
 ---
 
 # Contexto
 
 
-Lee `/Ejemplos_Maui/Ejemplos_Maui_Devices.Documentos.Copilot/ia-db/README.md`
+Lee `/Ejemplos_Maui/Ejemplos_Maui_Devices.Documentacion/ia-db/README.md`
 
 En el proyecto `Ejemplo_Maui_Hibrida`hay una implementación parcial del comando `action=print`. La implementación de la impresora bluetooth sigue la implementación dada en el proyecto `Ejemplo_MotorDSL_Dialog`.
 

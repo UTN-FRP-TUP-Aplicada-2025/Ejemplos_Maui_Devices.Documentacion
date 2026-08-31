@@ -1,4 +1,4 @@
-# Ejemplos_Maui_Devices.Documentos
+# Ejemplos_Maui_Devices.Documentacion
 
 Documentación de [`Ejemplos_Maui_Devices`](../Ejemplos_Maui_Devices/), la colección de ejemplos didácticos de acceso a dispositivos desde .NET MAUI (cámara, QR, impresión térmica, GPS, mapas, telefonía, red) más la app híbrida que los integra tras un WebView con backend Blazor.
 

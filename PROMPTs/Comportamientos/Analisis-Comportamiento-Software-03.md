@@ -2,13 +2,13 @@
 # Tool-Prompt — Evaluar comportamientos
 
 > **Invocación**:
-> - `Lee y ejecuta /Ejemplos_Maui/Ejemplos_Maui_Devices.Documentos/PROMPTs/Analisis-Comportamiento-Software-03.md`
+> - `Lee y ejecuta /Ejemplos_Maui/Ejemplos_Maui_Devices.Documentacion/PROMPTs/Comportamientos/Analisis-Comportamiento-Software-03.md`
 
 ---
 
 # Contexto
 
-Lee `/Ejemplos_Maui/Ejemplos_Maui_Devices.Documentos/ia-db/README.md`, la solución a la que indexa ese documento esta en el repositorio `/Ejemplos_Maui/Ejemplos_Maui_Devices`
+Lee `/Ejemplos_Maui/Ejemplos_Maui_Devices.Documentacion/ia-db/README.md`, la solución a la que indexa ese documento esta en el repositorio `/Ejemplos_Maui/Ejemplos_Maui_Devices`
 
 Estoy probando manualmente la aplicación MAUI .NET hibrida `Ejemplo_Maui_Hibrida` cuyo
 servicio web es: `Ejemplo_ws_Blazor` y sirve de las paginas web a la aplicación móvil.
@@ -21,19 +21,19 @@ a. Primera vez.
 
 Como es la primera vez, Pide los permisos.
 
-`/Ejemplos_Maui/Ejemplos_Maui_Devices.Documentos/PROMPTs/Analisis-Comportamiento-Software-03/Primera.md`
+`/Ejemplos_Maui/Ejemplos_Maui_Devices.Documentacion/PROMPTs/Comportamientos/Analisis-Comportamiento-Software-03/Primera.md`
 
 b. Segunda vez. 
 
 Directamente va a tomar las coordeandas.
 
-`/Ejemplos_Maui/Ejemplos_Maui_Devices.Documentos\PROMPTs/Analisis-Comportamiento-Software-03/Segunda.md`
+`/Ejemplos_Maui/Ejemplos_Maui_Devices.Documentacion\PROMPTs/Comportamientos/Analisis-Comportamiento-Software-03/Segunda.md`
 
 c. Primera vez. Pide los permisos.
 
 Directamente va a tomar las coordeandas.
 
-`/Ejemplos_Maui/Ejemplos_Maui_Devices.Documentos/PROMPTs/Analisis-Comportamiento-Software-03/Tercera.md`
+`/Ejemplos_Maui/Ejemplos_Maui_Devices.Documentacion/PROMPTs/Comportamientos/Analisis-Comportamiento-Software-03/Tercera.md`
 
 
 Pero en todos los casos se cierra el overlay y la coordenada no se ve hasta un rato despues.

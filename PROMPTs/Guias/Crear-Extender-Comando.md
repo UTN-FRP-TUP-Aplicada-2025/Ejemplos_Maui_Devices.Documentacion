@@ -1,14 +1,14 @@
 # Tool-Prompt — Actualizar Documentación
 
 > **Invocación**:
-> - `Lee y ejecuta /Ejemplos_Maui\Ejemplos_Maui_Devices.Documentos\PROMPTs\Guias\Crear-Extender-Comando.md`
+> - `Lee y ejecuta /Ejemplos_Maui\Ejemplos_Maui_Devices.Documentacion\PROMPTs\Guias\Crear-Extender-Comando.md`
 
 ---
 
 # Contexto
 
 
-Lee `/Ejemplos_Maui\Ejemplos_Maui_Devices.Documentos\ia-db\README.md`. 
+Lee `/Ejemplos_Maui\Ejemplos_Maui_Devices.Documentacion\ia-db\README.md`. 
 
 ---
 

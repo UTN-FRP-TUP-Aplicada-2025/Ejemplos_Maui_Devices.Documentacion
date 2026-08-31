@@ -1,14 +1,14 @@
 # Tool-Prompt — Analizar implementación PoC en Producción
 
 > **Invocación**:
-> - `Lee y ejecuta Ejemplos_Maui/Ejemplos_Maui_Devices.Documentos/PROMPTs/Implementar/Crear-Prompt-Analizar-Implementacion-End2End.md`
+> - `Lee y ejecuta Ejemplos_Maui/Ejemplos_Maui_Devices.Documentacion/PROMPTs/Implementaciones/Crear-Prompt-Analizar-Implementacion-End2End.md`
 
 ---
 
 # Contexto
 
-Lee `/Ejemplos_Maui/Ejemplos_Maui_Devices.Documentos/ia-db/README.md`
-Lee `/Ejemplos_Maui/Ejemplos_Maui_Devices.Documentos/Ejemplos_Maui_Devices-docs/README.md`
+Lee `/Ejemplos_Maui/Ejemplos_Maui_Devices.Documentacion/ia-db/README.md`
+Lee `/Ejemplos_Maui/Ejemplos_Maui_Devices.Documentacion/Ejemplos_Maui_Devices-docs/README.md`
 
 Se cuentan las siguientes piezas relaciondas:
 1. `Ejemplo_Maui_Hibrida` es una aplicación maui.
@@ -33,9 +33,9 @@ Es una forma de hacer una prueba end2end sobre la aplicación
 
 2. Propone alternativas para que un prompt construya el flujo de trabajo explorando por si mismo la aplicación. Una posibilidad es que se conecte a un telefono como desarrollador usb y haga un barrido en la UI de la aplicación y genere el story board por ponerle un nombre de la historia. Otra forma , sería que el prompt lance la aplicación android y vaya capturando la navegación del usuario, así luego la ejecuta sobre el simualdor por medio de este flujo de trabajo. O bien tal vez el prompt podría proponer ambos como opción y ahi se elige cual
 
-3. El prompt resultante lo podes dejar en `/Ejemplos_Maui/Ejemplos_Maui_Devices.Documentos/PROMPTs/Implementar/Crear-Flow-End2End-App.md`
+3. El prompt resultante lo podes dejar en `/Ejemplos_Maui/Ejemplos_Maui_Devices.Documentacion/PROMPTs/Implementaciones/Crear-Flow-End2End-App.md`
 
-4. Realimenta con esta tecnica end2end, sus posiblidades, herramientas en ``/Ejemplos_Maui/Ejemplos_Maui_Devices.Documentos/Ejemplos_Maui_Devices-docs/README.md``
+4. Realimenta con esta tecnica end2end, sus posiblidades, herramientas en ``/Ejemplos_Maui/Ejemplos_Maui_Devices.Documentacion/Ejemplos_Maui_Devices-docs/README.md``
 
 ---
 

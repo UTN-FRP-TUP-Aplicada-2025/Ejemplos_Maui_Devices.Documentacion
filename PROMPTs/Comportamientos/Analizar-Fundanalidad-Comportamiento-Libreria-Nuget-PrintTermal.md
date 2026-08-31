@@ -1,7 +1,7 @@
 # Tool-Prompt — Analizar capacidades de librería 
 
 > **Invocación**:
-> - `Lee y ejecuta /Ejemplos_Maui/Ejemplos_Maui_Devices.Documentos/PROMPTs/Analizar-Fundanalidad-Comportamiento-Libreria-Nuget-PrintTermal.md`
+> - `Lee y ejecuta /Ejemplos_Maui/Ejemplos_Maui_Devices.Documentacion/PROMPTs/Comportamientos/Analizar-Fundanalidad-Comportamiento-Libreria-Nuget-PrintTermal.md`
 
 ---
 
@@ -9,10 +9,10 @@
 
 Lee `/Librerias/PrintThermal_Motor_Maui.Documentacion/ia-db/README.md`, es todo lo relacionado a las capacidades de los comandos Esc-Pos y las posibilidades que pueden ofrecer estas impresoras en valuar manejo de fallos. Por ejemplo, atasco de papel, falta de papal, bloqueo, o problemas de buffer, entre otros.
 
-Lee `/Ejemplos_Maui/Ejemplos_Maui_Devices.Documentos/ia-db/README.md` en lo relacionado con los proyectos `Ejemplo_Maui_Hibrida` y `Ejemplo_MotorDSL_Dialog`. Estos dos proyectos usan las librerias nuget `MotorDsl.*`. y son dos aplicaciones PoC (Proff of Concept)
+Lee `/Ejemplos_Maui/Ejemplos_Maui_Devices.Documentacion/ia-db/README.md` en lo relacionado con los proyectos `Ejemplo_Maui_Hibrida` y `Ejemplo_MotorDSL_Dialog`. Estos dos proyectos usan las librerias nuget `MotorDsl.*`. y son dos aplicaciones PoC (Proff of Concept)
 Centrate en estas dos aplicaciónes en la gestión de la impresión, manejos de erroes de impresión, flujo de usuario con respecto a la impresión actules. 
 
-En el proyecto `Ejemplo_Maui_Hibrida` es un PoC (Proof of Concept) y es una aplicación hibrida que que mediante ciertos parametros, con el parametro `action=print` inicio una impresión. Actualmente la parte web es una aplicación blazord con páginas interative service. Esta aplicación web es `Ejemplo_ws_Blazor` y está indexada en `/Ejemplos_Maui/Ejemplos_Maui_Devices.Documentos/ia-db/README.md`
+En el proyecto `Ejemplo_Maui_Hibrida` es un PoC (Proof of Concept) y es una aplicación hibrida que que mediante ciertos parametros, con el parametro `action=print` inicio una impresión. Actualmente la parte web es una aplicación blazord con páginas interative service. Esta aplicación web es `Ejemplo_ws_Blazor` y está indexada en `/Ejemplos_Maui/Ejemplos_Maui_Devices.Documentacion/ia-db/README.md`
 
 En `Ejemplo_Maui_Hibrida` integra el uso de multiples dispositivo del dipositivo móvil manejado con un patrón de dialogos overlay. Es permite manejar la comunicación con el usuario ante situaciones de solicitud y denegación de estos de acceso a dispositivos, mensajes de esperas, y errores dentro del patrón mvvm de maui.
 

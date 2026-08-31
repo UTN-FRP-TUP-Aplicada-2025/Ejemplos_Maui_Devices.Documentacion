@@ -1,7 +1,7 @@
 # Tool-Prompt — Actualizar Documentación
 
 > **Invocación**:
-> - `Lee y ejecuta /Ejemplos_Maui/Ejemplos_Maui_Devices.Documentos/PROMPTs/Analisis-Comportamiento-Software.md`
+> - `Lee y ejecuta /Ejemplos_Maui/Ejemplos_Maui_Devices.Documentacion/PROMPTs/Comportamientos/Analisis-Comportamiento-Software-01.md`
 
 ---
 

@@ -219,7 +219,7 @@ Base común de overlays: `Common/Controls/StatusOverlayView.xaml` + `Common/View
 
 ### 5.1 Armonización de overlays y costuras de test
 
-Los cuatro overlays (GPS, Red, Telefonía, Impresión) se llevaron al mismo patrón que el de impresión ya había estrenado: **resultado tipado → una pantalla por variante → catálogo de errores con código → costura de interfaz**. Se aplicó el plan `Ejemplos_Maui_Devices.Documentos/Analisis/Plan-Armonizacion-Overlays.md`; la librería `MotorDsl.*` no se tocó (sigue en 1.0.13).
+Los cuatro overlays (GPS, Red, Telefonía, Impresión) se llevaron al mismo patrón que el de impresión ya había estrenado: **resultado tipado → una pantalla por variante → catálogo de errores con código → costura de interfaz**. Se aplicó el plan `Ejemplos_Maui_Devices.Documentacion/Analisis/Plan-Armonizacion-Overlays.md`; la librería `MotorDsl.*` no se tocó (sigue en 1.0.13).
 
 | Aspecto | Antes | Ahora | Fuente |
 |---|---|---|---|
@@ -364,9 +364,9 @@ Páginas Blazor (`Components/Pages/`): `Datos.razor` (prueba de interactividad),
 > | «Solicitar coordenadas» | `OnSolicitarCoordenadas()` | `/geolocalizacion?coordenadas=coordenadas` (**sin** `param`) | `Substitution` | La app re-navega a `/geolocalizacion?Latitud=…&Longitud=…`; `GeoLocalizacion.razor` lee los query params (`[SupplyParameterFromQuery]`), muestra `{"Latitud": …, "Longitud": …}` y ofrece «Volver» a `/panel`. Su `<div id="contenidoCoordenada">` está **comentado** (`Panel.razor:20`) porque en este modo no se inyecta nada |
 > | «Solicitar GeoPosicion» | `OnSolicitarGeoposicion()` | `/panel?coordenadas=coordenadas&param=contenidoCoordenada` (**con** `param`) | `Injection` | La app cancela la navegación, toma el GPS e inyecta `"Latitud: …, Longitud: …"` en `#contenidoCoordenada` por JS, sin recargar el panel (`Panel.razor:32`) |
 >
-> Ambos botones están rotulados «Tomar Coordenadas» — se distinguen por el `<h4>` de la tarjeta, no por el rótulo. En `Substitution`, si el dispositivo falla la app re-navega igual con el centinela `0.0/0.0` y la página lo interpreta como «sin coordenada» (invariante §4.3). Fuentes: `Panel.razor:12-34` (tarjetas) y `:168-182` (métodos), `GeoLocalizacion.razor`.
+> Ambos botones están rotulados «Tomar Coordenadas» — se distinguen por el `<h4>` de la tarjeta y por el `<p>` descriptivo («…en una página nueva» vs. «…y las inyecta al DOM», `Panel.razor:19` / `:31`), no por el rótulo. En `Substitution`, si el dispositivo falla la app re-navega igual con el centinela `0.0/0.0` y la página lo interpreta como «sin coordenada» (invariante §4.3). Fuentes: `Panel.razor:12-34` (tarjetas) y `:168-209` (bloque `#region coordenadas`, con subregiones `page redict` → `OnSolicitarCoordenadas` `:173-178` e `inject en el DOM` → `OnSolicitarGeoposicion` `:184-189` + `[SupplyParameterFromQuery] Latitud/Longitud` y `MostrarCoordeandas()`), `GeoLocalizacion.razor`.
 >
-> ⚠️ **Trampa de lectura:** el comentario XML sobre `OnSolicitarCoordenadas` (`Panel.razor:172-173`) dice «INYECTA el resultado en `#contenidoCoordenada` … Mismo patrón que foto/selfie/QR: `param={id}`», pero ese método es el del modo **`Substitution`** (no lleva `param` y no inyecta): el comentario quedó del camino anterior y se copió tal cual al método nuevo. Vale para `OnSolicitarGeoposicion`, no para `OnSolicitarCoordenadas`. Guiarse por la URL, no por el comentario.
+> ⚠️ **Trampa de lectura:** el comentario XML sobre `OnSolicitarCoordenadas` (`Panel.razor:175-176`) dice «INYECTA el resultado en `#contenidoCoordenada` … Mismo patrón que foto/selfie/QR: `param={id}`», pero ese método es el del modo **`Substitution`** (no lleva `param` y no inyecta): el comentario quedó del camino anterior y se copió tal cual al método nuevo. Vale para `OnSolicitarGeoposicion`, no para `OnSolicitarCoordenadas`. Guiarse por la URL, no por el comentario.
 >
 > Nota menor: `Panel.razor` pasó de `@inject NavigationManager Navigation` a una propiedad `[Inject] NavigationManager _navigationManager`.
 

@@ -21,7 +21,7 @@ traces: []
 ## Cómo está organizado
 
 ```
-Ejemplos_Maui_Devices.Documentos/
+Ejemplos_Maui_Devices.Documentacion/
 ├── ia-db/                     ← índices navegables del código (Fase 1; punto de entrada para agentes)
 └── Ejemplos_Maui_Devices-docs/  ← este conjunto documental
     ├── README.md              ← este índice maestro
@@ -122,7 +122,7 @@ La solución incluye una técnica de **prueba end2end sobre la UI real** que cor
   1. **Espera activa** en el flujo: `extendedWaitUntil: { visible: "Geo Pos", timeout: 120000 }` en vez del wait fijo. Maestro no interactúa hasta que el control nativo está presente.
   2. **Pre-warm** en el script: se lanza la app y se espera su carga **antes** de arrancar `recordVideo`; el flujo usa `launchApp: { stopApp: false }` para **no reiniciarla** (un solo arranque en frío, no grabado). El video queda enfocado en el recorrido, no en el splash.
 
-**Herramientas y posibilidades para *generar* el flujo por exploración** (ver el prompt [`Crear-Flow-End2End-App.md`](../PROMPTs/Implementar/Crear-Flow-End2End-App.md)):
+**Herramientas y posibilidades para *generar* el flujo por exploración** (ver el prompt [`Crear-Flow-End2End-App.md`](../PROMPTs/Implementaciones/Crear-Flow-End2End-App.md)):
 - **A — Barrido caja-negra (Android USB):** `adb` + `maestro hierarchy`/`uiautomator dump` para recorrer la UI y derivar el *storyboard*.
 - **B — Grabación de navegación:** `maestro record`/`maestro studio` capturan la sesión → se normaliza a las convenciones y se replaya en iOS.
 - **C — Derivación estática:** leer los `Text=` de las páginas MAUI y emitir el flujo sin dispositivo (provisional hasta validar).

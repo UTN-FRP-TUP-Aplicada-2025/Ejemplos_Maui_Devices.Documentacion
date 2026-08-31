@@ -1,0 +1,1 @@
+Lee y ejecuta `/IA/IA.Prompts/Tool-Prompts/Indexado-Documentado/Iniciar-Indexado.md` de `/GDA_/GDA.APP` y deja la indexación en `/GDA_/GDA.APP.Documentacion/ia-db`
