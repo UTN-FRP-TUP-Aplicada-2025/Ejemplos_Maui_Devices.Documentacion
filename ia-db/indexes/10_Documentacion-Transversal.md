@@ -1,176 +1,128 @@
-# Índice 10 — Documentación transversal
+# 10 — Documentación transversal
 
-> **Propósito**: mapear el material de apoyo que cruza varios dominios (certificados SSL/TLS, notas técnicas de `otros/`) y las convenciones de documentación del repo (`CHANGELOG`, `README`).
-> **Fuente primaria**: `Ejemplos_Devices/Docs/` + `CHANGELOG.md` + `README.md` (raíz).
-> **Entrada ia-db**: [README](../README.md) · [Índice maestro](00_MASTER-INDEX.md)
-
----
-
-## 1. Mapa de la documentación transversal
-
-```
-Ejemplos_Devices/Docs/
-├── Certificados-SSL/          # guía TLS/PKI para MAUI Híbrida (WebView Android)
-│   ├── README.md
-│   ├── Anexo-A-Comandos.md
-│   └── Anexo-B-Glosario.md
-├── otros/                     # notas técnicas varias
-│   ├── AsyncRelayCommandOptions.md
-│   ├── Eventos.md
-│   ├── GetEnviromentVersion.md
-│   └── propuesta-rosetta.md
-├── qr-nuget/     ─▶ índice 02 (solo referencia)
-└── web-hibrida/  ─▶ índice 08 (solo referencia)
-
-CHANGELOG.md   (raíz)          # Keep a Changelog (es-ES 1.1.0)
-README.md      (raíz)          # portada de dominios
-```
-
-> **Fuera de alcance de este índice** (solo referencia): `Docs/qr-nuget/` (análisis y migración de NuGets de QR) → **índice 02**; `Docs/web-hibrida/` (captura-foto, envio-api, lectura-qr, llamada, maui-hibrido) → **índice 08**.
+> **Propósito:** los documentos que no pertenecen a un solo dominio — la arquitectura web↔híbrida, los certificados SSL, la propuesta Rosetta, los apuntes de MVVM/eventos y el CHANGELOG.
+> **Fuente primaria:** `Ejemplos_Devices/Docs/` (18 documentos, ~4.300 líneas), `CHANGELOG.md`, `README.md`, `.gitignore`.
+> **Índices relacionados:** todos — este índice es el mapa de la prosa; el detalle técnico está en los índices [01](01_Camara.md)–[09](09_CI-CD-y-Build.md).
 
 ---
 
-## 2. `Docs/Certificados-SSL/` — TLS/PKI en Android WebView
+## 1. Mapa de `Ejemplos_Devices/Docs/`
 
-Guía didáctica (es-AR) para resolver el error **`Trust anchor for certification path not found`** en una app **.NET MAUI Híbrida** cuyo WebView (Android System WebView = Chromium) abre una URL HTTPS. Caso de estudio: `https://aplicada.somee.com` en un Moto g42 (Android 12/13). Reutilizable para cualquier dominio.
+| Carpeta | Documentos | Tema | Índice que lo cubre |
+|---------|-----------:|------|---------------------|
+| `web-hibrida/` | 5 · 1.850 l. | La arquitectura de la app híbrida, comando por comando | [08](08_App-Hibrida-Integrada.md) |
+| `qr-nuget/` | 6 · 766 l. | Evaluación de librerías de escaneo | [02](02_QR.md) |
+| `Certificados-SSL/` | 3 · 624 l. | `Trust anchor for certification path not found` en el WebView de Android | este índice §3 |
+| `otros/` | 4 · 1.031 l. | `AsyncRelayCommand`, eventos + behaviors, Rosetta, entorno | este índice §4 y §5 |
 
-| Archivo | Contenido | Fuente |
-|---|---|---|
-| `README.md` | Resumen ejecutivo, PKI en 5 min, diagnóstico, solución (`network_security_config.xml` + `res/raw`), mantenimiento, errores comunes | `Docs/Certificados-SSL/README.md` |
-| `Anexo-A-Comandos.md` | Comandos de inspección: `openssl s_client -showcerts`, PowerShell `X509Chain`, `adb logcat -s cr_X509Util` | `Docs/Certificados-SSL/Anexo-A-Comandos.md` |
-| `Anexo-B-Glosario.md` | Glosario PKI/TLS (AIA, CA, cadena, DER/PEM, trust anchor, SNI, SAN, MITM, …) | `Docs/Certificados-SSL/Anexo-B-Glosario.md` |
+## 2. `web-hibrida/` — la arquitectura documentada
 
-### 2.1. Diagnóstico (núcleo de la guía)
+Cinco documentos que describen la **secuencia de llamadas y la lógica** de cada comando del puente. Todos remiten a `maui-hibrido.md` como documento raíz y llaman **«Canal B»** al puente nativo por URL.
 
-| Concepto | Resumen | Fuente |
-|---|---|---|
-| Síntoma | `cr_X509Util: Failed to validate the certificate chain … Trust anchor for certification path not found` | `README.md §1` |
-| Causa raíz | La raíz **`ISRG Root X2`** (Let's Encrypt/ISRG, ECDSA 2020) **no está** en el trust store de Android viejo → cadena abierta | `README.md §1, §3.2` |
-| No es | **No es Sectigo** (suposición errada del setup original; de ahí el nombre `download_sectigo.ps1`) | `README.md §1, §8` |
-| Cadena real | `[0] aplicada.somee.com → [1] YE2 → [2] Root YE → [3] ISRG Root X2` (raíz auto-firmada, el server NO la envía) | `README.md §3.2`, `Anexo-A §A.1` |
-| Solución | Embeber la **raíz** (y por robustez los 2 intermedios) en `res/raw/*.pem` y declararlos como `trust-anchors` por dominio en `network_security_config.xml` | `README.md §4` |
+| Documento | Líneas | Alcance |
+|-----------|-------:|---------|
+| `maui-hibrido.md` | 677 | El principio de funcionamiento: MAUI hospedando una web **Blazor Interactive Server remota** (`https://aplicada.somee.com`), cómo se consigue la interactividad (el **circuito SignalR**), el puente por URL con el flujo GPS en detalle, y **el diagnóstico del fallo de iOS** (la página se ve pero los botones no responden) |
+| `lectura-qr.md` | 393 | El comando `qr=qr` |
+| `captura-foto.md` | 326 | Los comandos `photo=photo` y `selfie=selfie`: cámara nativa, normalización y devolución al DOM sin recargar |
+| `envio-api.md` | 244 | El comando `sendAPI=sendAPI`: relay REST con `HttpClient` nativo |
+| `llamada.md` | 222 | El comando `phone=phone` y su overlay de estado |
 
-La cadena verificada (con `openssl` y `X509Chain`):
+Los cuatro documentos de comando comparten la misma estructura: panorama del rol dentro del Canal B → secuencia de llamadas → lógica asociada → contraste con los otros comandos.
 
-| # | Rol | Subject | Issuer | ¿Lo envía el server? |
-|---|---|---|---|---|
-| 0 | Hoja | `CN=aplicada.somee.com` | `CN=YE2, O=Let's Encrypt` | Sí |
-| 1 | Intermedio | `CN=YE2, O=Let's Encrypt` | `CN=Root YE, O=ISRG` | Sí |
-| 2 | Intermedio | `CN=Root YE, O=ISRG` | `CN=ISRG Root X2, O=ISRG` | Sí |
-| 3 | **Raíz (anchor)** | `CN=ISRG Root X2` | *(auto-firmado)* | **NO** → debe estar en el cliente |
+⚠️ La solución `Ejemplos_Devices.slnx` declara la carpeta `/Docs/web-hibrida/` **vacía**, sin enlazar ninguno de los 5 documentos ([índice 09 §7](09_CI-CD-y-Build.md)).
 
-### 2.2. Herramientas de inspección (Anexo A)
+## 3. `Certificados-SSL/` — el caso `Trust anchor`
 
-| Herramienta | Qué te dice | Señal clave | Fuente |
-|---|---|---|---|
-| `openssl s_client -showcerts` | Qué certificados **envía el server** y sus `s:`/`i:` | El `i:` del último cert = la raíz que falta | `Anexo-A §A.1` |
-| PowerShell `X509Chain` (`download_sectigo.ps1`) | Si **Windows** valida la cadena | `Cadena válida desde Windows` → el problema es **solo** de Android | `Anexo-A §A.2` |
-| `adb logcat -s cr_X509Util:*` | Si el **WebView** acepta la cadena | Desaparece `Trust anchor … not found` cuando está resuelto | `Anexo-A §A.3` |
+Guía didáctica en tres piezas (`README.md` 353 l., `Anexo-A-Comandos.md` 223 l., `Anexo-B-Glosario.md` 48 l.) sobre un problema real y reproducible.
 
-### 2.3. Mantenimiento y trade-offs
-
-| Estrategia | Qué embebés | Pro / Contra | Fuente |
-|---|---|---|---|
-| **Solo la raíz** (recomendada) | `isrg_root_x2.pem` | Mínimo mantenimiento (raíz válida hasta 2040); depende de que el server siga enviando intermedios | `README.md §6` |
-| **Raíz + intermedios** (la elegida) | `isrg_root_x2.pem`, `root_ye.pem`, `ye2.pem` | Robusta ante cadenas incompletas; **rompe cuando Let's Encrypt rota los intermedios** y hay que regenerar los `.pem` | `README.md §6` |
-
-### 2.4. Archivos de la app que la guía toca (proyecto `Integrada/Ejemplo_Maui_Hibrida/`)
-
-```
-Platforms/Android/
-├── AndroidManifest.xml                         # android:networkSecurityConfig="@xml/network_security_config"
-└── Resources/
-    ├── xml/network_security_config.xml         # <domain-config> aplicada.somee.com + <trust-anchors>
-    └── raw/{isrg_root_x2,root_ye,ye2}.pem       # raíz + 2 intermedios (PEM)
-```
-
-Fuentes de `trust-anchors` (`<certificates src="…">`), `README.md §4.1`:
-
-| `src` | Significado | Uso recomendado |
-|---|---|---|
-| `"system"` | Raíces del SO | **Siempre** incluir |
-| `"user"` | CAs instaladas por el usuario | **Evitar en producción** (riesgo MITM) |
-| `"@raw/<nombre>"` | Certificado embebido en `res/raw/<nombre>.(pem\|der)` | Aportar la raíz que falta (nombre **sin** extensión) |
-
-Reglas críticas de `res/raw` (rompieron el build original): nombres solo `[a-z0-9_]` minúscula; sin duplicar base con distinta extensión (`.cer` + `.pem` → *Duplicate resources*); en `@raw/<nombre>` va **sin** extensión (`README.md §7`). En producción, evitar `src="user"` por riesgo MITM (`README.md §4.3`).
-
-> Cruce: el proyecto sobre el que aplica (`Ejemplo_Maui_Hibrida`, WebView) pertenece al **índice 08 (web-híbrida)**; aquí se documenta solo el material SSL/PKI transversal.
-
----
-
-## 3. `Docs/otros/` — notas técnicas varias
-
-| Archivo | Tema | Aplica a | Fuente |
-|---|---|---|---|
-| `AsyncRelayCommandOptions.md` | Clase didáctica `AsyncRelayCommand` (MVVM sin `CommunityToolkit.Mvvm`): anti-reentrancia, `IsRunning`, límites (no captura excepciones, `CancellationToken` siempre `None`), comparación con CommunityToolkit | `GPS/…/ViewModels/AsyncRelayCommand.cs`, `Phone/Ejemplo_Maui_DirectCall/…` | `Docs/otros/AsyncRelayCommandOptions.md` |
-| `Eventos.md` | `WebView` + `EventToCommandBehavior` con **compiled bindings**: por qué el `Command` queda `null` y por qué `e` llega `null`; 3 soluciones (x:Reference, x:DataType en behavior, code-behind) + `EventArgsConverter` | `Integrada/Ejemplo_Maui_Hibrida` | `Docs/otros/Eventos.md` |
-| `GetEnviromentVersion.md` | Prerequisitos de entorno: 7-Zip (requerido por SDK Android), NuGets usados (OneSignal, SkiaSharp, CommunityToolkit.Maui.Camera…), `dotnet sdk check`, `dotnet workload list/update` | entorno de desarrollo | `Docs/otros/GetEnviromentVersion.md` |
-| `propuesta-rosetta.md` | Propuesta CI: compilar el simulador iOS en `x86_64`/Rosetta para sortear que Google ML Kit no publica slice de simulador arm64 (afecta `BarcodeScanner.Mobile.Maui`) | job CD iOS (índice 09) | `Docs/otros/propuesta-rosetta.md` |
-
-### 3.1. Puntos clave por documento
-
-**`AsyncRelayCommandOptions.md`** — implementación minimalista (~50 líneas, sin NuGet):
-- Resuelve: **espera de finalización** y **anti-reentrancia** (`IsRunning` deshabilita el botón mientras corre); envuelve un `Func<Task>` en `ICommand`.
-- Límites conocidos: `Execute` es `async void` → **no captura excepciones** (el `try/catch` va en el ViewModel); no expone `ExecuteAsync` awaitable; el `CancellationToken` siempre vale `None` (cancelación vía coordinador externo, p. ej. `GpsCoordinator`).
-- Regla práctica: para cancelación fina / manejo de errores estructurado, migrar a `CommunityToolkit.Mvvm` (`README.md §5` de ese doc lo compara punto a punto).
-
-**`Eventos.md`** — `WebView` + `EventToCommandBehavior` con compiled bindings (`x:DataType`):
-- Problema 1: el `Command` queda `null` porque los `Behavior` no heredan el `BindingContext` de forma fiable → soluciones: `Source={x:Reference page}` (recomendada), `x:DataType` en el behavior, o code-behind.
-- Problema 2: el comando se invoca pero `e` llega `null` — en CommunityToolkit.Maui el `EventToCommandBehavior` **no pasa los `EventArgs` por defecto**; hay que configurar un `EventArgsConverter` o manejar el evento en code-behind.
-
-**`GetEnviromentVersion.md`** — prerequisitos y verificación del entorno de desarrollo (7-Zip para el SDK Android; NuGets base; `dotnet sdk check`, `dotnet workload list/update`). Empareja con `Ejemplos_Devices/scripts/GetEnviromentVersion.bat` (índice 09).
-
-**`propuesta-rosetta.md`** — 3 cambios de YAML (sin tocar código) para el build de simulador afectado por ML Kit: RID → `iossimulator-x64`, `xcodebuild -downloadPlatform iOS -architectureVariant universal`, y `softwareupdate --install-rosetta`. Incluye causa raíz (ML Kit no publica slice de simulador arm64), riesgos (rendimiento bajo Rosetta, disco, deprecación de Rosetta 2) y rollback.
-
-### 3.2. Cruces con otros índices
-
-- **`propuesta-rosetta.md`** es la justificación técnica del RID `iossimulator-x64` de los workflows **`BSM`** y de los steps `ROSETTA`/`-architectureVariant universal` → detalle de aplicación en el **índice 09**. Los 3 cambios propuestos (RID → x64, runtime universal, `softwareupdate --install-rosetta`) ya están incorporados en `cd-ios-qr.BSM.*.yml`.
-- **`GetEnviromentVersion.md`** documenta el entorno que el script `Ejemplos_Devices/scripts/GetEnviromentVersion.bat` inspecciona → **índice 09**.
-- **`AsyncRelayCommandOptions.md`** y **`Eventos.md`** documentan patrones de código MVVM/WebView de los ejemplos (dominios GPS/Phone/Híbrida) → material de referencia para los índices de esos dominios.
-
----
-
-## 4. `CHANGELOG.md` (raíz) — convención
-
-- **Formato**: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) en **es-ES** (`CHANGELOG.md:1-4`).
-- **Alcance declarado**: "Cambios notables de los ejemplos de dispositivos MAUI (`Ejemplos_Maui_Devices`)".
-- **Estructura de entrada**: encabezado `## [AAAA-MM-DD] — <título>` seguido de subsecciones **`### Agregado` / `### Cambiado`** (categorías Keep a Changelog: Added/Changed/…).
-- **Estilo**: viñetas con rutas y símbolos concretos en `código`, agrupadas por área (p. ej. `LibApp/…`, `DTOs/Print/…`, versiones de paquetes `MotorDsl.* 1.0.12 → 1.0.13`), incluyendo cambios de CI (p. ej. la recategorización del workflow de la híbrida a `cd-ios-Integrada.Ejemplo_Maui_Hibrida.yml`; ver índice 09).
-- **Variantes de subsección observadas**: además de `### Agregado` / `### Cambiado`, se usan `### Corregido` y `### Activado`; varias entradas abren con una línea **`Alcance:`** que delimita qué se tocó (y aclara, cuando aplica, «No se tocó código de la app»).
-
-> Entrada más reciente al momento del índice: `## [2026-07-23] — Panel con ambos modos de GPS y normalización de namespaces en LibApp`. Las dos entradas más recientes (`2026-07-23` ×2) cubren el **puente de comandos por URL** de la app híbrida (Plan 1: clasificación separada de ejecución; y el panel ejercitando los dos modos de `CommandDelivery` + namespaces `LibApp.*`) → efecto indexado en el **índice 08 §4.3 y §7.1**; las tres anteriores (`2026-07-18` ×3) cubren la **técnica de simulación end2end** (flujo Maestro rehecho + activación del `push` del workflow, robustez del boot del simulador, pre-warm de la grabación) → **índice 09 §2 y §4.2**. **No se copian entradas aquí**; consultar `CHANGELOG.md` para el detalle vigente.
-
----
-
-## 5. `README.md` (raíz) — portada de dominios
-
-Portada mínima "Ejemplos de uso de dispositivos desde MAUI .NET" que lista los dominios con enlace a un `Ejemplo_Docs_<Dominio>/Readme.md` por área (`README.md:1-25`):
-
-| Dominio | Enlace en el README | Estado |
-|---|---|---|
-| Thermal Printer BlueTooth | `Ejemplos_Devices/Printer/Ejemplo_Docs_Printer/Readme.md` | con GIF de ejemplo |
-| Lectura de QR | `Ejemplos_Devices/QR/Ejemplo_Docs_QR/Readme.md` | "En construcción …" |
-| Cámara | `Ejemplos_Devices/Camera/Ejemplo_Docs_Photo/Readme.md` | "En construcción …" |
-| Red y Conectividad | `Ejemplos_Devices/Red/Ejemplo_Docs_Red/Readme.md` | "En construcción …" |
-| GPS | `Ejemplos_Devices/GPS/Ejemplo_Docs_GPS/Readme.md` | "En construcción …" |
-| Maps | `Ejemplos_Devices/Maps/Ejemplo_Docs_Maps/Readme.md` | "En construcción …" |
-
-Convención de documentación observada: cada dominio tiene una carpeta `Ejemplo_Docs_<Dominio>/` con su `Readme.md`; el README raíz es solo el índice de entrada (muchos dominios aún "En construcción"). La documentación técnica profunda vive en `Ejemplos_Devices/Docs/` (este índice) y en los Readme por-ejemplo.
-
----
-
-## 6. Trazabilidad rápida
-
-| Afirmación | Fuente project-relative |
+| | |
 |---|---|
-| Error/causa/solución TLS Android | `Ejemplos_Devices/Docs/Certificados-SSL/README.md` |
-| Comandos de inspección de cadena | `Ejemplos_Devices/Docs/Certificados-SSL/Anexo-A-Comandos.md` |
-| Glosario PKI/TLS | `Ejemplos_Devices/Docs/Certificados-SSL/Anexo-B-Glosario.md` |
-| `AsyncRelayCommand` (MVVM) | `Ejemplos_Devices/Docs/otros/AsyncRelayCommandOptions.md` |
-| WebView + EventToCommandBehavior | `Ejemplos_Devices/Docs/otros/Eventos.md` |
-| Prerequisitos de entorno | `Ejemplos_Devices/Docs/otros/GetEnviromentVersion.md` |
-| Propuesta Rosetta/x64 (CI) | `Ejemplos_Devices/Docs/otros/propuesta-rosetta.md` |
-| Formato del changelog | `CHANGELOG.md:1-4` |
-| Portada de dominios | `README.md:1-25` |
+| **Síntoma** | El WebView (Android System WebView = Chromium) no abre `https://aplicada.somee.com`. En el log: `cr_X509Util … CertPathValidatorException: Trust anchor for certification path not found` |
+| **Caso de estudio** | Moto g42 (Android 12/13) |
+| **Causa raíz** | La raíz de la cadena es **`ISRG Root X2`** (Let's Encrypt / ISRG), una raíz **ECDSA de 2020** que no está en el almacén de confianza de Android en dispositivos viejos: el validador no puede cerrar la cadena |
+| **No es** | **No es Sectigo** — «esa fue una suposición equivocada del setup original (incluso el script se llamaba `download_sectigo.ps1`)» |
+| **Solución** | Embeber la raíz y los dos intermedios como `.pem` en `res/raw` y declararlos como `trust-anchors` para ese dominio en `network_security_config.xml` |
+| **Archivos** | `Ejemplo_Maui_Hibrida/Platforms/Android/Resources/xml/network_security_config.xml`, `…/raw/*.pem`, `AndroidManifest.xml` |
 
-**Referencias externas a este índice**: `Docs/qr-nuget/` → índice 02 · `Docs/web-hibrida/` → índice 08 · pipeline/CI (rosetta, GetEnviromentVersion.bat) → índice 09.
+El `Anexo-A` trae los comandos de inspección con salidas de ejemplo (`openssl`, PowerShell + `X509Chain`, `adb`); el `Anexo-B`, el glosario PKI/TLS.
+
+> El script `Utilities/download_sectigo.ps1` **conserva el nombre equivocado** que el propio documento señala. Es la huella de la hipótesis descartada.
+
+## 4. `otros/propuesta-rosetta.md` — la propuesta que el repo terminó ejecutando
+
+192 líneas. Estado declarado: «Propuesta para reevaluar en el workspace de pruebas de pipelines». Ámbito: **solo YAML del workflow**, sin tocar código ni NuGets.
+
+El job de iOS construye **dos binarios distintos** y solo uno falla:
+
+| Build | RID | Propósito | ¿Falla? |
+|-------|-----|-----------|---------|
+| Simulador | `iossimulator-arm64` | Smoke test + GIF de evidencia | ❌ **Sí** |
+| Release / IPA | `ios-arm64` | Entregable para iPhone físico | ✅ No |
+
+**La causa raíz, explicada en términos de Mach-O:** el runner es Apple Silicon, así que el RID del simulador es `iossimulator-arm64`. `BarcodeScanner.Mobile.Maui` 9.0.1 usa el SDK nativo de **Google ML Kit**, que publica `arm64` **solo para device** y `x86_64` para simulador. En Apple Silicon device y simulador comparten CPU arm64, pero el Mach-O los distingue por el flag `LC_BUILD_VERSION` (`PLATFORM_IOS` vs `PLATFORM_IOSSIMULATOR`), y `ld` rechaza mezclarlos.
+
+Es el documento fundacional de dos decisiones que sí se ejecutaron: la variante `iossimulator-x64` + Rosetta de los dos workflows de BSM ([índice 09 §4.3](09_CI-CD-y-Build.md)) y, después, la evaluación de alternativas que buscó **eliminar** esa dependencia ([índice 02 §2](02_QR.md)). El estudio de NuGets lo cita explícitamente como la solución con fecha de caducidad, porque Apple está retirando Rosetta.
+
+## 5. `otros/` — los apuntes de técnica
+
+| Documento | Líneas | Contenido |
+|-----------|-------:|-----------|
+| `AsyncRelayCommandOptions.md` | 412 | Qué resuelve `AsyncRelayCommand`: `ICommand.Execute` devuelve `void`, así que un `async void` deja excepciones sin capturar y no permite deshabilitar el botón mientras corre. Documenta la **implementación didáctica sin dependencias** que aparece duplicada en `GPS/Ejemplo_Maui_GPS/ViewModels/` y `Phone/Ejemplo_Maui_DirectCall/ViewModels/`, «pensada para mostrar MVVM sin incorporar `CommunityToolkit.Mvvm`» |
+| `Eventos.md` | 312 | **El problema del `EventToCommandBehavior` con compiled bindings**: la app inicia, el `WebView` muestra la URL, pero `Navigating`/`Navigated` **nunca llegan al ViewModel y no hay ninguna excepción**. La causa es la interacción de `x:DataType` con los `Behavior`, que no heredan `BindingContext` — el mismo mecanismo que documenta `WebViewBridgeBehavior` en su código ([índice 08 §5](08_App-Hibrida-Integrada.md)) |
+| `GetEnviromentVersion.md` | 115 | Instalación del entorno la primera vez (7zip requerido por el SDK de Android, NuGet, …); acompaña a `scripts/GetEnviromentVersion.bat` |
+| `propuesta-rosetta.md` | 192 | §4 |
+
+Los dos primeros son **el porqué de código que está duplicado a propósito**: `AsyncRelayCommand` en dos proyectos y la mecánica de behaviors en la híbrida.
+
+## 6. Documentos de raíz
+
+### `README.md`
+
+25 líneas. Portada con seis entradas que apuntan a la carpeta `Ejemplo_Docs_*` de cada dominio: Thermal Printer (con el GIF `ejemplo_print_thermal.gif`), Lectura de QR, Cámara, Red y Conectividad, GPS y Maps. Las cinco últimas dicen **«En construcción …»** — lo que refleja el estado de esas carpetas `Ejemplo_Docs_*`, no el de los ejemplos, que sí están desarrollados.
+
+### `CHANGELOG.md`
+
+Basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) 1.1.0, en español. **9 entradas**, de `2026-07-13` a `2026-07-23` (la más reciente).
+
+Convenciones observables:
+- Encabezado `## [AAAA-MM-DD] — <título temático>`, no versiones semánticas.
+- Una línea `Alcance:` inmediatamente debajo del título, con las rutas afectadas.
+- Subsecciones estándar (`### Agregado`, `### Cambiado`, `### Corregido`, `### Eliminado`) más dos propias: **`### Notas`** y **`### Activado`** (esta última se usó para activar el `push` del CI de la híbrida).
+- Las entradas explican **el defecto que motivó el cambio**, no solo el cambio: p. ej. la del Plan 1 enumera los dos defectos del modelo anterior del puente.
+
+Recorrido temático de las 9 entradas: impresión térmica y reorganización a `LibApp/` → fix de navegación del WebView y permisos Bluetooth → UX de impresión con códigos de error → armonización de overlays y primer proyecto de tests → tres entradas de CI/end2end → puente de comandos (Plan 1) → panel con ambos modos de GPS y namespaces `LibApp`.
+
+### `.gitignore`
+
+421 líneas: el `.gitignore` estándar de Visual Studio más una sección propia al final — **«API keys locales (no subir al repo)»** con `**/Services/ApiKeys.cs`, que es lo que hace que el proyecto de GPS necesite crear ese archivo desde su `.template` ([índice 04 §7](04_GPS.md)).
+
+## 7. Documentación fuera de este repositorio
+
+El código referencia documentos que **no viven en el repositorio de código** sino en `Ejemplos_Maui_Devices.Documentacion` (donde está esta ia-db):
+
+| Referencia en el código | Dónde |
+|-------------------------|-------|
+| `Analisis/Plan-Armonizacion-Overlays.md` §2 | `Ejemplo_Maui_Hibrida.Tests/Invariantes.cs:9` |
+| **ADR-0001** (cada ejemplo autocontenido y copiable) | `Ejemplo_Maui_Hibrida.Tests.csproj` |
+| **ADR-0009** (guard de reentrada, cultura de coordenadas) | `MainViewModel.cs`, `GpsCommandHandler.cs`, `Ejemplo_Maui_Hibrida.Tests.csproj` |
+| **Plan 1** §3/§4/§5 (ejes A y B, invariante de continuación) | todo `LibApp/UrlCommands/` |
+
+Al leer esos comentarios hay que buscar el documento en el repositorio de documentación, no en el de código.
+
+## 8. Observaciones
+
+- **La documentación por dominio está desbalanceada.** `Ejemplo_Docs_Printer/` tiene ~3.100 líneas de manuales y `Docs/web-hibrida/` ~1.850; en el otro extremo, `GPS/Ejemplo_Docs_GPS/Readme.md` es **un link** y `Maps/Ejemplo_Docs_Maps/Readme.md` está **vacío**.
+- Los documentos de análisis (`qr-nuget/`, `propuesta-rosetta.md`) declaran su fecha y su estado («evaluación read-only», «propuesta para reevaluar»), y varios ya fueron superados por los hechos: la propuesta Rosetta se ejecutó y luego se buscó revertirla; el estudio de NuGets nombra un proyecto (`Ejemplo_LectorQR_Dialog`) que ya no existe.
+- El repositorio conserva deliberadamente **el rastro del error**: el nombre de `download_sectigo.ps1`, los bloques de código comentados con la versión anterior, los workflows del proyecto retirado. Es material didáctico, no descuido.
+
+## 9. Fuentes
+
+| Ruta | Contenido |
+|------|-----------|
+| `Docs/web-hibrida/maui-hibrido.md` | Principio de funcionamiento del híbrido, circuito SignalR, Canal B, diagnóstico de iOS |
+| `Docs/web-hibrida/{captura-foto,lectura-qr,llamada,envio-api}.md` | Secuencia y lógica de cada comando |
+| `Docs/Certificados-SSL/` | El caso `Trust anchor`, comandos de inspección y glosario PKI/TLS |
+| `Docs/otros/propuesta-rosetta.md` | La causa raíz Mach-O del fallo de MLKit y la propuesta x64/Rosetta |
+| `Docs/otros/{AsyncRelayCommandOptions,Eventos}.md` | MVVM sin toolkit y el problema de behaviors con compiled bindings |
+| `CHANGELOG.md` | 9 entradas fechadas, de 2026-07-13 a 2026-07-23 |
+| `README.md`, `.gitignore` | Portada del repositorio y la sección de API keys locales |

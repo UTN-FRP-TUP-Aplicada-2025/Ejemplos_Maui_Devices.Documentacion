@@ -1,451 +1,300 @@
-# Índice 08 — App híbrida integrada (WebView + Blazor)
+# 08 — App híbrida integrada
 
-> **Propósito**: documentar el ejemplo insignia — una app .NET MAUI que hospeda un `WebView` remoto y expone al sitio Blazor todos los dispositivos nativos mediante un puente de comandos por URL, con el flujo de impresión térmica end-to-end como caso testigo.
-> **Fuente primaria**: `Ejemplos_Devices/Integrada/`.
-> **Entrada ia-db**: [README](../README.md) · [Índice maestro](00_MASTER-INDEX.md)
-
----
-
-## 1. Panorama arquitectónico
-
-La solución son **dos proyectos .NET 10** que dialogan por HTTP/WebView:
-
-| Proyecto | Rol | SDK | Fuente |
-|---|---|---|---|
-| `Ejemplo_Maui_Hibrida` | Contenedor MAUI: hospeda un `WebView` estándar (no `BlazorWebView`) apuntando a una web remota y consolida todos los dispositivos en `LibApp/` | `Microsoft.NET.Sdk` (MAUI 10.0.80) | `Ejemplo_Maui_Hibrida.csproj` |
-| `Ejemplo_ws_Blazor` | Backend de ejemplo: Blazor Interactive Server + API REST que sirve el comprobante imprimible y recibe geolocalización | `Microsoft.NET.Sdk.Web` (net10.0) | `Ejemplo_ws_Blazor.csproj` |
-
-El `WebView` carga `https://aplicada.somee.com` (`Pages/MainPage.xaml.cs:17`). Sobre él conviven **dos canales independientes** (detalle completo en `Ejemplos_Devices/Docs/web-hibrida/maui-hibrido.md`):
-
-```
-┌── CONTENEDOR MAUI (Ejemplo_Maui_Hibrida) ─────────────────────────────────┐
-│  WebView  Source = "https://aplicada.somee.com"                           │
-│                                                                           │
-│  Canal A · INTERACTIVIDAD  → Blazor Interactive Server (circuito SignalR) │
-│  Canal B · DISPOSITIVOS    → URL "marcada" (?action=print, ?qr=qr…)       │
-│            interceptada en Navigating → UrlCommandDispatcher → handler     │
-│            nativo → resultado devuelto al DOM (JS) o por re-navegación     │
-└───────────────────────────────────────────────────────────────────────────┘
-```
-
-- **Canal A** (interactividad de la web) no es responsabilidad de este índice; su análisis y el bug de iOS están en `Docs/web-hibrida/maui-hibrido.md` §3, §6–§7.
-- **Canal B** (acceso a dispositivos vía puente de URL) es el corazón de esta app y el foco de este índice (§4–§6).
-
-### 1.1 Arranque y wiring (`MauiProgram.cs`)
-
-| Bloque | Qué registra | Líneas |
-|---|---|---|
-| Toolkit | `UseMauiCommunityToolkit` + `...Core` + `...Camera` | `MauiProgram.cs:43-45` |
-| QR | `UseBarcodeScanning()` (BarcodeScanning.Native.Maui 3.0.4) | `MauiProgram.cs:57` |
-| Impresión | `AddMotorDslEngine()` + `AddProfiles(...)` + `AddMotorDslMaui()` + `AddBluetoothPrinterTransport()` | `MauiProgram.cs:61-70` |
-| Servicios device | `IGpsService→GpsService`, `INetworkService→NetworkService`, `ICallService→CallService`, `IPrinterService→PrinterService`, `IUiDispatcher→MainThreadDispatcher`, `ApiRelayService` (singletons) — **registrados por interfaz** para que los overlays dependan de la abstracción y los tests inyecten fakes | `MauiProgram.cs:83,93-98` |
-| Bridge/páginas | `IWebViewBridge→WebViewBridge`, `IImageService→ImageDeviceAutoRotateService`, páginas de cámara | `MauiProgram.cs:102-105` |
-| Handlers URL | 7 `IUrlCommandHandler` + `UrlCommandDispatcher` (orden de registro = orden de evaluación) | `MauiProgram.cs:116-123` |
-
-Shell de página única: `AppShell.xaml` declara sólo `MainPage` como `ShellContent`; `AppShell.xaml.cs:12-14` registra las rutas de navegación de las páginas modales de dispositivo (`MyMediaPickerPage`, `MyMediaSelfiePickerPage`, `QRLectorPage`).
+> **Propósito:** la app que integra todos los dispositivos en un `WebView`: el puente de comandos por URL, los cuatro overlays armonizados, el backend Blazor que la ejercita y la suite de tests.
+> **Fuente primaria:** `Ejemplos_Devices/Integrada/` — 3 proyectos, ~7.000 líneas.
+> **Índices relacionados:** [01_Camara](01_Camara.md) · [02_QR](02_QR.md) · [03_Impresion-Termica](03_Impresion-Termica.md) · [04_GPS](04_GPS.md) · [06_Telefonia](06_Telefonia.md) · [07_Red-Conectividad](07_Red-Conectividad.md) (los dominios que integra) · [09_CI-CD-y-Build](09_CI-CD-y-Build.md) · [10_Documentacion-Transversal](10_Documentacion-Transversal.md).
 
 ---
 
-## 2. Árbol comentado de `LibApp/`
+## 1. Los tres proyectos
 
-Todo lo reutilizable vive bajo `Ejemplo_Maui_Hibrida/LibApp/`. Reorganización deliberada: cada dispositivo aislado se consolidó como subcarpeta de `LibApp/Devices/` con su propio `Models/Services/ViewModels/Pages`.
+| Proyecto | Qué es | Tamaño |
+|----------|--------|--------|
+| `Ejemplo_Maui_Hibrida` | App MAUI: un `WebView` a pantalla completa + `LibApp/` con todos los dispositivos | ~3.700 líneas |
+| `Ejemplo_ws_Blazor` | Backend Blazor Server + API que la app abre y que dispara los comandos | ~530 líneas de Razor + 3 controllers |
+| `Ejemplo_Maui_Hibrida.Tests` | 78 tests xUnit sobre ViewModels y puente, **sin emulador** | ~1.440 líneas |
+
+`ApplicationId` de la app: `com.ejemplos.devices.integrada.hibrida`. Es el proyecto con más paquetes del repositorio: `BarcodeScanning.Native.Maui` 3.0.4, `CommunityToolkit.Maui{,.Core,.Camera}` 14.2.0/6.1.0, `CommunityToolkit.Mvvm` 8.4.2, `MetadataExtractor` 2.9.0, `SkiaSharp` 3.119.2, `AdamE.Google.iOS.GoogleUtilities` 8.1.0.3, MAUI 10.0.80 y los **7 paquetes `MotorDsl.*` 1.0.13**.
+
+## 2. La idea: la web pide, el nativo ejecuta
+
+La app no tiene UI propia más allá del `WebView` y cuatro botones: **la pantalla la pone la web**. Cuando la página necesita una capacidad del dispositivo, **navega a una URL con un marcador**; la app intercepta la navegación, la cancela, ejecuta el comando nativo y devuelve el resultado.
 
 ```
-LibApp/
-├── CustomWebView/                     El WebView personalizado (puente imperativo desacoplado)
-│   ├── Behaviors/
-│   │   ├── IWebViewBridge.cs          Abstracción: Reload() / RunScript(js) + eventos
-│   │   ├── WebViewBridge.cs           Singleton: sólo dispara eventos (no toca el control)
-│   │   └── WebViewBridgeBehavior.cs   Behavior<WebView>: traduce eventos → EvaluateJavaScriptAsync/Reload (UI thread)
-│   └── Converts/
-│       └── WebNavigatingEventArgsConverter.cs   Convierte args de Navigating/Navigated para EventToCommandBehavior
-│
-├── UrlCommands/                       ★ Puente de comandos por URL (Canal B) — ver §4
-│   ├── IUrlCommandHandler.cs          Contrato: CanHandle(url) + CancelsNavigation + DeliveryFor(url) + OnMatchedSync(url) + HandleAsync(url) (los 3 del medio son default interface members)
-│   ├── CommandDelivery.cs             enum None/Injection/Substitution — cómo el comando devuelve su resultado a la web (por URL, no por handler)
-│   ├── UrlPlan.cs                     record(Matches, Cancel) — resultado de CLASIFICAR una URL, calculado una sola vez y síncrono; Primary = first-match-wins
-│   ├── BridgeOutcome.cs               record(CancelNavigation, NavigateTo?) — cómo termina un comando
-│   ├── UrlCommandDispatcher.cs        Plan(url) síncrono (clasifica) + ExecuteAsync(plan,url) async (ejecuta); DispatchAsync()/IsCommand() conservados por compatibilidad
-│   └── Handlers/                      7 handlers (uno por comando) — ver tabla §4.2
-│       ├── GpsCommandHandler.cs
-│       ├── CallCommandHandler.cs
-│       ├── CameraCommandHandler.cs
-│       ├── SelfieCommandHandler.cs
-│       ├── QrCommandHandler.cs
-│       ├── SendApiCommandHandler.cs
-│       └── PrintCommandHandler.cs
-│
-└── Devices/                           Dispositivos consolidados (reutilizan los ejemplos aislados) — ver §5
-    ├── Common/                        Base compartida de overlays
-    │   ├── Controls/StatusOverlayView.xaml(.cs)   Capa visual busy/error sobre el WebView
-    │   ├── Services/IUiDispatcher.cs  Abstracción de MainThread (BeginInvoke) + impl. MainThreadDispatcher; solo la usa el overlay de Red (§5.1)
-    │   └── ViewModels/StatusOverlayViewModel.cs   Estados None/Busy/Error + OverlayAction
-    ├── Camera/Pages/                  MyMediaPickerPage, MyMediaSelfiePickerPage (captura con callback)
-    ├── GPS/                           IGpsService→GpsService + GpsOverlayViewModel + Models(GpsResult, GpsFailure, GpsErrorCatalog(GPS-*), LocationPermissionResult)
-    │   └── ApiRelayService.cs         Relay REST genérico con allowlist de hosts (usado por SendApi); namespace `LibApp.Devices.GPS`
-    ├── Images/                        IImageService + ImageDeviceAutoRotateService + SelfieMaskDrawable
-    ├── Networks/                      INetworkService→NetworkService + NetworkOverlayViewModel + NetworkResult
-    ├── Phone/                         ICallService→CallService + CallOverlayViewModel + Models(CallMode, CallResult…, CallFailure + CallErrorCatalog(TEL-*))
-    ├── QRLector/                      QRLectorPage + QRContent
-    └── MotorDSL/                      Impresión térmica Bluetooth — ver §6
-        ├── DTOs/Print/               PrintDocument, PrintNode, PrintStyle, N (fábrica de nodos)
-        ├── Models/                   BluetoothPermissionResult, DiscoverResult, PrintResult, PrintFailure, PrinterErrorCatalog(PRN-*), DocumentResult
-        ├── Services/                 IPrinterService→PrinterService, BluetoothPermissions
-        ├── ViewModels/               PrinterOverlayViewModel (orquesta permisos→discover→conectar→imprimir)
-        └── Pages/                    OverlayBlueToothThermalPrintPage (contenedor vacío)
+Panel.razor  ──NavigateTo("/panel?photo=photo&param=imgFoto1", forceLoad:true)──▶  WebView
+                                                                                     │ Navigating
+                                                            MainViewModel.Navigating ▼
+                                          Plan(url)  ──▶ e.Cancel = true  (fase SÍNCRONA)
+                                          ExecuteAsync(plan, url)          (fase asíncrona)
+                                                     ▼
+                                          CameraCommandHandler → cámara → base64
+                                                     ▼
+                                          IWebViewBridge.RunScript(js)  ──▶ DOM de la página viva
 ```
 
-> Nota de build: `Ejemplo_Maui_Hibrida.csproj:84-90` excluye `LibApp/Devices/MotorDSL/NewFolder/**` de la compilación (carpeta muerta).
->
-> **Namespaces normalizados a la raíz `LibApp.*`.** Todo `LibApp/` declara su namespace por carpeta bajo la raíz `LibApp` (`LibApp.UrlCommands.Handlers`, `LibApp.Devices.GPS`, …), **sin** el prefijo del ensamblado. Quedaban dos rezagados bajo `Ejemplo_Maui_Hibrida.LibApp.*` — `Devices/GPS/ApiRelayService.cs` y `UrlCommands/Handlers/PrintCommandHandler.cs` — ya migrados; hoy no queda ninguna referencia a `Ejemplo_Maui_Hibrida.LibApp` en `Ejemplos_Devices/Integrada/`. Sólo `MauiProgram.cs`, `App/AppShell` y `ViewModels/` viven en el namespace `Ejemplo_Maui_Hibrida`. Importa para el linkeo de fuentes de los tests (§9): un `using` mixto es lo que obligaba a duplicar imports en `MauiProgram.cs`.
+## 3. El protocolo de URL
 
-### 2.1 El WebView personalizado (`CustomWebView/`)
+Cada comando es un par `clave=valor` en la query. `param={id}` nombra el elemento del DOM donde inyectar el resultado.
 
-Patrón de puente desacoplado en tres piezas, para que el ViewModel/handler nunca toque el control:
+| Marcador | Handler | Entrega | Ejemplo de la web |
+|----------|---------|---------|-------------------|
+| `coordenadas=coordenadas` | `GpsCommandHandler` | `Injection` **con** `param`, `Substitution` **sin** `param` | `/geolocalizacion?coordenadas=coordenadas` · `/panel?coordenadas=coordenadas&param=contenidoCoordenada` |
+| `phone=phone` | `CallCommandHandler` | `None` | `/panel?phone=phone` |
+| `photo=photo&param={id}` | `CameraCommandHandler` | `Injection` | `/panel?photo=photo&param=imgFoto1` |
+| `selfie=selfie&param={id}` | `SelfieCommandHandler` | `Injection` | `/panel?selfie=selfie&param=imgSelfie1` |
+| `qr=qr&param={id}` | `QrCommandHandler` | `Injection` | `/panel?qr=qr&param=contenidoQR` |
+| `sendAPI=sendAPI&httpMethod=…&url={enc}&param={callId}&body={enc}` | `SendApiCommandHandler` | `Injection` (hook `window.recibirRespuestaApi`) | `/panel?sendAPI=…` |
+| `action=print` | `PrintCommandHandler` | `None` | `/panel?action=print` |
 
-```mermaid
-flowchart LR
-    H["Handler / VM"] -->|RunScript js / Reload| B["WebViewBridge (singleton, IWebViewBridge)"]
-    B -->|ScriptRequested / ReloadRequested| BEH["WebViewBridgeBehavior : Behavior&lt;WebView&gt;"]
-    BEH -->|MainThread → EvaluateJavaScriptAsync / Reload| WV["WebView"]
-```
+**El orden de registro en `MauiProgram.cs:116-122` es el orden de precedencia** (política *first-match-wins*): GPS → Call → Camera → Selfie → QR → SendApi → Print. Por eso el combo «Llamar y reportar» de la web (`phone` + `sendAPI` en la misma URL) **solo dispara la llamada**: `phone` se evalúa antes. La propia web lo documenta en el comentario de `Panel.razor:210-212`.
 
-- `WebViewBridge` sólo emite eventos (`WebViewBridge.cs:10-11`); no conoce el control.
-- `WebViewBridgeBehavior` los traduce a acciones imperativas **siempre en UI thread, fire-and-forget** (`WebViewBridgeBehavior.cs:62-64`).
-- Gotcha documentado en el código: la behavior no está en el árbol visual, así que hay que **propagarle el `BindingContext`** manualmente o el `Binding` de `Bridge` queda en null sin error visible (`WebViewBridgeBehavior.cs:22-27`).
-- `MainPage.xaml:27-38` cablea el `WebView`: `WebViewBridgeBehavior` + dos `EventToCommandBehavior` (`Navigating`, `Navigated`) hacia `MainViewModel`.
+## 4. El puente de comandos (`LibApp/UrlCommands/`)
 
----
+### 4.1 El contrato
 
-## 3. Intercepción de navegación (`MainViewModel`)
+`IUrlCommandHandler` (44 l.) — «agregar un comando nuevo = una clase que implemente esto + una línea de DI»:
 
-`MainViewModel` es el `BindingContext` de `MainPage` y el punto donde el Canal B se dispara:
+| Miembro | Default | Para qué |
+|---------|---------|----------|
+| `bool CanHandle(string url)` | — | ¿Esta URL es mía? |
+| `bool CancelsNavigation` | `true` | ¿Esta URL-comando cancela la navegación? |
+| `CommandDelivery DeliveryFor(string url)` | `None` | Cómo devuelve el resultado **esta invocación** |
+| `void OnMatchedSync(string url)` | no-op | Gancho síncrono, antes de cualquier `await` |
+| `Task<BridgeOutcome> HandleAsync(string url)` | — | Ejecutar |
+
+Los tres del medio son **default interface members**: se agregaron sin editar ninguno de los 7 handlers existentes, que conservan el comportamiento anterior (cancelar siempre, sin entrega declarada).
+
+`BridgeOutcome(bool CancelNavigation, string? NavigateTo = null)` es el resultado de interpretar la URL.
+
+### 4.2 `CommandDelivery` — los tres modos de devolver un resultado
+
+| Modo | Mecanismo | Quiénes |
+|------|-----------|---------|
+| `None` | No hay resultado para la web: la respuesta es la UI nativa (overlay) | llamada, impresión |
+| `Injection` | Se inyecta en el DOM de la página viva vía `IWebViewBridge.RunScript`. **Requiere navegación cancelada**: si la página recarga, el elemento destino desaparece | foto, selfie, QR, sendAPI, GPS con `param` |
+| `Substitution` | Se **re-navega** la misma URL con el query param de comando sustituido por query params de valor (patrón heredado de APPGDA) | GPS sin `param` |
+
+Es propiedad del **comando concreto, no del handler**: el mismo handler puede operar en dos modos según la URL — por eso se consulta con `DeliveryFor(url)` y no con una propiedad sin argumentos.
+
+> **INVARIANTE:** un comando que declara `Substitution` **debe** devolver `NavigateTo` no nulo, pase lo que pase con el dispositivo. Si no, la navegación queda muerta: se canceló y no se re-navegó.
+
+### 4.3 `UrlPlan` y el dispatcher
+
+`UrlPlan(IReadOnlyList<IUrlCommandHandler> Matches, bool Cancel)` es el resultado de **clasificar** una URL, calculado **una sola vez y de forma síncrona**.
+
+Por qué existe (comentario de `UrlPlan.cs:5-10`): antes `CanHandle` se evaluaba **dos veces por navegación** —una en `IsCommand` y otra en `DispatchAsync`— y era inocuo porque los 7 handlers eran funciones puras de la URL. Con un handler que consulte o mute estado (un token persistido, p. ej.) deja de serlo: las dos lecturas darían distinto y el comportamiento dependería del orden.
+
+`UrlCommandDispatcher` (99 l.) separa clasificación de ejecución:
+
+| Método | Qué hace |
+|--------|----------|
+| `Plan(url)` | **100 % síncrono a propósito**: el WebView lee `e.Cancel` apenas retorna el handler de `Navigating`. Evalúa `CanHandle` una vez por handler, hace el **OR de `CancelsNavigation`** sobre los que matchean y corre `OnMatchedSync` para **todos** ellos (así el gancho no depende de *first-match-wins*) |
+| `ExecuteAsync(plan, url)` | Ejecuta `plan.Primary` (el primero que matcheó) |
+| `DispatchAsync(url)` | Conveniencia para los botones nativos, que no vienen de un `Navigating` |
+| `IsCommand(url)` | Se conserva por compatibilidad de firma; `MainViewModel` ya no la usa |
+
+Dos aserciones `#if DEBUG` protegen el invariante de continuación, **fallando ruidoso en vez de manifestarse como un WebView colgado**:
+1. En `Plan`: si se canceló pero el handler que va a ejecutarse (first-match-wins) **no** es de los que pidieron cancelar → `Debug.Fail("… Navegación muerta")`.
+2. En `ExecuteAsync`: si el handler declara `Substitution` y devolvió `NavigateTo == null` → `Debug.Fail`.
+
+⚠️ Cuando **ningún** handler matchea, `ExecuteAsync` devuelve `NavigateTo = null` deliberadamente. Devolver la propia `url` haría que `MainViewModel` reasigne `Url = e.Url` en **toda** navegación normal (incluido el reload del pull-to-refresh), lo que reasigna `WebView.Source` y dispara una segunda navegación superpuesta: `Navigated` nunca cierra el `RefreshView` y `IsRefreshing` no vuelve a `false` limpiamente (`UrlCommandDispatcher.cs:66-72`).
+
+### 4.4 El caso GPS: un handler, dos modos
+
+`GpsCommandHandler` (107 l.) es el ejemplo que motivó `CommandDelivery`:
+
+- **Con `param`** → `Injection`: arma `"Latitud: …, Longitud: …"`, lo inyecta con `element.textContent` y **no recarga** — así el overlay de espera queda visible sobre la página estática, sin parpadeo ni el problema de «URL idéntica no re-navega». Sin coordenada no inyecta nada: la continuación es el overlay de error, y la página sigue viva porque se canceló la navegación.
+- **Sin `param`** → `Substitution`: re-navega **siempre**, haya o no señal. Sin coordenada sustituye por el **centinela `0.0/0.0`**, que la web ya interpreta como «sin coordenada» (`GeoLocalizacion.razor` lo pone si llegan vacías). Antes del rediseño, un fallo del dispositivo devolvía `(cancel: true, navigateTo: null)` = **página congelada**.
+
+Dos detalles que el código justifica:
+- **`CultureInfo.InvariantCulture`** al formatear lat/lng: con la cultura del dispositivo (`es-*` → coma) la coordenada llegaría sin separador decimal (`-31,74` → `-3174`).
+- **Nonce `_ts` monótono** (`Interlocked.Increment`) al final de la URL re-navegada: si la coordenada es idéntica a la anterior, `WebView.Source` no dispara `PropertyChanged` y la página no re-navega. Blazor ignora el parámetro extra.
+
+El resto de los handlers también serializa con `JsonSerializer` lo que va al script, «para no romper el JS / evitar inyección» — salvo `CameraCommandHandler`, que interpola el `targetId` y el data-URI directamente en el string de JS (`:61-62`).
+
+## 5. El bridge del WebView
+
+Tres piezas que mantienen al VM y a los handlers **desacoplados del control**:
+
+| Pieza | Rol |
+|-------|-----|
+| `IWebViewBridge` | Única abstracción de las acciones imperativas: `Reload()`, `RunScript(js)` y dos eventos |
+| `WebViewBridge` (singleton) | Solo dispara los eventos; no conoce ningún `WebView` |
+| `WebViewBridgeBehavior : Behavior<WebView>` | Traduce los eventos en acciones sobre el control, **siempre** en el UI thread y fire-and-forget |
+
+⚠️ Trampa documentada en la behavior (`:22-26`): **una `Behavior` no está en el árbol visual, así que su `BindingContext` no se hereda solo**. Hay que propagárselo desde el control (`BindingContext = bindable.BindingContext` + suscripción a `BindingContextChanged`) o el binding de `Bridge` **queda en `null` sin ningún error visible**.
+
+## 6. `MainViewModel` — el interceptor de navegación
+
+150 líneas. Expone `Url`, `IsRefreshing`, los cuatro overlays, `WebBridge` y los comandos.
+
+### 6.1 Las dos fases de `Navigating`
 
 ```csharp
-// ViewModels/MainViewModel.cs:90-132
+[RelayCommand(AllowConcurrentExecutions = true)]
 private async Task Navigating(WebNavigatingEventArgs e)
 {
-    // ── Fase SÍNCRONA (hasta el primer await) ────────────────────────
-    var plan = _dispatcher.Plan(e.Url);          // clasifica una sola vez, síncrono
-    if (plan.Cancel) e.Cancel = true;            // cancelar ANTES de cualquier await
-    if (plan.HasMatches == false) { IsRefreshing = false; return; }   // navegación normal
-
-    // guard de reentrada SÓLO para planes que cancelan
+    // ── Fase SÍNCRONA: todo lo que decide e.Cancel va acá arriba ──
+    var plan = _dispatcher.Plan(e.Url);
+    if (plan.Cancel) e.Cancel = true;
+    if (!plan.HasMatches) { IsRefreshing = false; return; }
     if (plan.Cancel && comandoEnCurso) { IsRefreshing = false; return; }
-
-    // ── Fase ASÍNCRONA ───────────────────────────────────────────────
-    var marcarEnCurso = plan.Cancel;
-    if (marcarEnCurso) comandoEnCurso = true;
-    try
-    {
-        var outcome = await _dispatcher.ExecuteAsync(plan, e.Url);
-        if (outcome.NavigateTo is not null) Url = outcome.NavigateTo;   // rama Substitution (GPS)
-    }
-    finally { if (marcarEnCurso) comandoEnCurso = false; IsRefreshing = false; }
+    // ── Fase ASÍNCRONA ──
+    …await _dispatcher.ExecuteAsync(plan, e.Url)…
 }
 ```
 
-- **Plan 1 (refactor del puente):** la *clasificación* (`Plan`, síncrona) se separó de la *ejecución* (`ExecuteAsync`, async). La cancelación dejó de ser «es comando ⇒ cancelo» y pasó a ser un **OR sobre los handlers que matchean** (`h.CancelsNavigation`): los 7 handlers actuales son cancelables, así que el comportamiento observable no cambió. La cancelación **debe** fijarse antes del primer `await`; por eso vive en la fase síncrona, sobre el `plan` ya calculado (`UrlCommandDispatcher.cs:24-49`, `MainViewModel.cs:93-96`).
-- El guard de reentrada (`comandoEnCurso`) ahora sólo aplica a planes que **cancelan**: un plan no-cancelable deja seguir la navegación de todos modos, así que bloquearlo no protegería nada.
-- Botones nativos del pie (`MainPage.xaml:51-54`) invocan el mismo protocolo sin pasar por la web: `TakePhone` → `phone=phone`, `TakeQR` → `qr=qr&param=contenidoQR`, `TakeGPS` fuerza `coordenadas=coordenadas` (`MainViewModel.cs:43-70`).
-- Overlays `GPS/Network/Call` se dibujan encima del `WebView`; el `WebView` sólo es visible si el overlay de Red está oculto, para no mostrar la página de error del navegador (`MainPage.xaml:22-48`).
+Dos reglas que el código deja escritas:
 
----
+1. **Regla de mantenimiento:** «no introducir ningún `await` por encima de la asignación de `e.Cancel`». El cuerpo de un método `async` corre sincrónicamente hasta el primer `await`; después de él, el WebView ya leyó `e.Cancel`.
+2. **`AllowConcurrentExecutions = true` es imprescindible.** Con el default de `AsyncRelayCommand`, el comando quedaría bloqueado por «estar en ejecución» y el `EventToCommandBehavior` **no lo invocaría en el 2.º `Navigating`**: `e.Cancel` no se fijaría y el WebView haría la navegación real, perdiendo la inyección del resultado.
 
-## 4. El puente de comandos por URL (`UrlCommands/`) ★
+El **guard de reentrada** (`comandoEnCurso`) descarta un segundo click mientras hay un comando en curso, pero **solo para planes que cancelan**: un plan no-cancelable deja seguir la navegación igual, así que bloquearlo no protegería nada y sí podría descartar trabajo.
 
-### 4.1 Cómo se registra y despacha
+### 6.2 Los demás comandos
 
-- **Contrato** (`IUrlCommandHandler.cs`): `bool CanHandle(string url)` + `Task<BridgeOutcome> HandleAsync(string url)`, más tres **default interface members** que los 7 handlers actuales no necesitan implementar (conservan su comportamiento por defecto):
-  - `bool CancelsNavigation` (default `true`) — ¿esta URL-comando cancela la navegación del WebView?
-  - `CommandDelivery DeliveryFor(string url)` (default `None`) — cómo devuelve el resultado *esta invocación concreta* (depende de la URL, no del handler; ver §4.3).
-  - `void OnMatchedSync(string url)` (default no-op) — gancho **síncrono** ejecutado durante la clasificación, en el mismo pase que decide `e.Cancel` y antes de cualquier `await`; corre para **todos** los handlers que matchean, no sólo para el que se ejecuta.
-  - Agregar un comando = una clase + una línea de DI.
-- **Registro** (`MauiProgram.cs:116-122`): cada handler como `AddSingleton<IUrlCommandHandler, ...>`. El **orden de registro = orden de evaluación**.
-- **Clasificación** (`UrlCommandDispatcher.Plan(url)`, síncrona): evalúa `CanHandle` **una sola vez** por handler, arma la lista de matches, calcula `Cancel` como OR de `CancelsNavigation` y corre `OnMatchedSync` de todos los matches. Devuelve un `UrlPlan(Matches, Cancel)`; `Primary` = primer match (*first-match-wins*, abierto/cerrado, sin `switch`). Por qué existe el plan: con handlers que consultan/mutan estado, evaluar `CanHandle` dos veces (como antes en `IsCommand`+`DispatchAsync`) daría resultados distintos según el orden (`UrlPlan.cs`).
-- **Ejecución** (`ExecuteAsync(plan, url)`, async): delega en `plan.Primary`. `DispatchAsync(url) = ExecuteAsync(Plan(url), url)` se conserva para los botones nativos; `IsCommand(url) = Plan(url).HasMatches` se conserva por compatibilidad de firma (ya no lo usa `MainViewModel`).
-- **Invariante de continuación (sólo `#if DEBUG`, `Debug.Fail`):** si el plan cancela pero el `Primary` no es cancelable (URL mal formada, first-match-wins ejecuta otro handler) → navegación muerta; y un handler que declara `Substitution` y devuelve `NavigateTo == null` → idem. Falla ruidoso en el runner en vez de manifestarse como un WebView colgado (`UrlCommandDispatcher.cs`).
-- **Resultado** (`BridgeOutcome.cs`): `record(bool CancelNavigation, string? NavigateTo = null)` — ver §4.3.
+| Comando | Qué hace |
+|---------|----------|
+| `TakeGPSCommand` («Geo Pos») | Fuerza `coordenadas=coordenadas` sobre la `Url` actual y delega en el dispatcher, sin duplicar la lógica de reescritura |
+| `TakePhoneCommand` («Llamar») | `DispatchAsync("phone=phone")` — usa el protocolo real de la web |
+| `TakeQRCommand` («Leer QR») | `DispatchAsync("qr=qr&param=contenidoQR")` |
+| `RefreshCommand` | `WebBridge.Reload()`; el spinner se cierra en `Navigated` |
+| `VolverCommand` | `Url = "https://aplicada.somee.com"` |
+| `NavigatedCommand` | `IsRefreshing = false` y notifica al overlay de Red el éxito o el fallo de la navegación |
 
-### 4.3 Modos de entrega (`CommandDelivery`)
+## 7. Los cuatro overlays
 
-Cómo un comando le devuelve su resultado a la web. Es propiedad del **comando concreto**, no del handler: el mismo handler puede operar en dos modos según la URL (por eso `DeliveryFor(url)`, no una propiedad sin argumentos). Caso testigo: `GpsCommandHandler` (§4.2, fila 1).
+`MainPage.xaml` apila cuatro `StatusOverlayView` sobre el `WebView`. **El orden de declaración es la prioridad visual** (el último queda arriba): GPS → Red → Llamada → **Impresión** (máxima prioridad).
 
-| Modo | Cómo devuelve | `BridgeOutcome` | Casos actuales |
-|---|---|---|---|
-| `None` | Sin resultado para la web: la respuesta es la UI nativa (overlay) | `(true, null)` sin `RunScript` | llamada, impresión |
-| `Injection` | Inyecta en el DOM de la página viva vía `IWebViewBridge.RunScript`; **requiere** navegación cancelada (si recarga, el elemento destino desaparece) | `(true, null)` + JS | foto, selfie, QR, sendAPI, GPS **con** `param` |
-| `Substitution` | Re-navega la misma URL con el query param de comando sustituido por query params de valor | `(true, nuevaUrl)` | GPS **sin** `param` |
+El `WebView` se ve **solo cuando el overlay de Red está oculto** (`IsVisible` con `InvertedBoolConverter`): así nunca se muestra la página de error del navegador.
 
-> **Invariante `Substitution`:** un comando que declara `Substitution` **debe** devolver `NavigateTo` no nulo pase lo que pase con el dispositivo — si falla, se sustituye por el centinela `0.0/0.0`. Si no re-navega, la navegación queda muerta (se canceló y no se re-navegó). Verificado por la aserción de DEBUG del dispatcher y por tests (§9).
+Los cuatro dominios comparten la misma estructura de cinco piezas:
 
-### 4.2 Handlers registrados (7)
+| Dominio | Servicio | Resultado tipado | Catálogo (prefijo) | ViewModel |
+|---------|----------|------------------|--------------------|-----------|
+| GPS | `IGpsService` / `GpsService` | `GpsResult` | `GpsErrorCatalog` (**`GPS-*`**) | `GpsOverlayViewModel` |
+| Teléfono | `ICallService` / `CallService` | `CallResult`, `CallPermissionResult`, `CallMode` | `CallErrorCatalog` (**`TEL-*`**) | `CallOverlayViewModel` |
+| Red | `INetworkService` / `NetworkService` | `NetworkResult` | — | `NetworkOverlayViewModel` |
+| Impresión | `IPrinterService` / `PrinterService` | `PrintResult`, `DiscoverResult`, `DocumentResult` | `PrinterErrorCatalog` (**`PRN-*`**) | `PrinterOverlayViewModel` |
 
-Orden = evaluación (`MauiProgram.cs:116-122`):
+Códigos de GPS: `GPS-PERM-ASK`, `GPS-PERM-DENIED`, `GPS-PERM-MDM`, `GPS-OFF`, `GPS-UNSUPPORTED`, `GPS-NO-SIGNAL`, `GPS-CANCELLED`, `GPS-UNKNOWN`. De teléfono: `TEL-PERM-ASK`, `TEL-PERM-DENIED`, `TEL-PERM-MDM`, `TEL-UNSUPPORTED`, `TEL-BAD-NUMBER`, `TEL-CANCELLED`, `TEL-NO-ACTIVITY`, `TEL-UNKNOWN`. Los de impresión, en el [índice 03 §6](03_Impresion-Termica.md).
 
-| # | Comando (marcador en la URL) | Handler | Efecto | Salida (`BridgeOutcome`) | Fuente |
-|---|---|---|---|---|---|
-| 1 | `coordenadas=coordenadas` | `GpsCommandHandler` | Pide geolocalización vía overlay. **Dos modos según la URL** (`DeliveryFor`): **con** `param={id}` → `Injection` (inyecta `"Latitud: …, Longitud: …"` en `#id`, no recarga); **sin** `param` → `Substitution` (re-navega sustituyendo `coordenadas=coordenadas` por `Latitud=…&Longitud=…` + nonce) | con `param`: `(true, null)` + JS · sin `param`: `(true, nuevaUrl)` — **re-navega SIEMPRE**, aun si el dispositivo falla (centinela `0.0/0.0`) | `Handlers/GpsCommandHandler.cs:35-105` |
-| 2 | `phone=phone` | `CallCommandHandler` | Llamada directa al número por defecto `3434807427`, modo `Direct` | `(true, null)` | `Handlers/CallCommandHandler.cs:11,20-26` |
-| 3 | `photo=photo&param={id}` | `CameraCommandHandler` | Cámara → normaliza → base64 → inyecta en `img#id.src`/`.value` | `(true, null)` + JS | `Handlers/CameraCommandHandler.cs:23-67` |
-| 4 | `selfie=selfie&param={id}` | `SelfieCommandHandler` | Idéntico a foto pero con `MyMediaSelfiePickerPage` (máscara selfie) | `(true, null)` + JS | `Handlers/SelfieCommandHandler.cs:22-64` |
-| 5 | `qr=qr&param={id}` | `QrCommandHandler` | Abre lector QR; inyecta la lista serializada en `#id.textContent` | `(true, null)` + JS | `Handlers/QrCommandHandler.cs:20-49` |
-| 6 | `sendApi=sendApi&httpMethod=…&url=…&param={id}&body=…` | `SendApiCommandHandler` | Relay REST vía `ApiRelayService`; inyecta `{ok,status,body}` en `#id` | `(true, null)` + JS | `Handlers/SendApiCommandHandler.cs:23-46` |
-| 7 | `action=print` | `PrintCommandHandler` | GET al comprobante → render MotorDSL → overlay Bluetooth | `(true, null)` | `Handlers/PrintCommandHandler.cs:34-67` |
+> **Por qué `GpsFailure`, `CallFailure` y `PrintFailure` son tres records con la misma forma** (`GpsFailure.cs:6-12`): se evaluó unificarlos en un tipo de `Common/` y **se descartó** — obligaba a reabrir el dominio de impresión, el único ya validado en dispositivo, y a reprobarlo entero, además de desincronizar la app del PoC `Ejemplo_MotorDSL_Dialog`, que no tiene carpeta `Common`. «Lo que armoniza el patrón son los invariantes, no un tipo compartido.»
 
-Detalles transversales:
-- Todos parsean query con un helper local `GetQueryValue` (idéntico en cada handler; se desestima `HttpUtility`).
-- Cámara/selfie/QR navegan a una página modal y esperan el resultado con `TaskCompletionSource` (`CameraCommandHandler.cs:34-42`; QR usa `destinoPage.ResultadoTask.Task`, `QrCommandHandler.cs:38-40`).
-- `SendApiCommandHandler` sólo permite verbos `Post`/`Get`; cualquier otro → `Blocked`; `ApiRelayService` aplica **allowlist de hosts** (`geolocate.somee.com`) (`ApiRelayService.cs:14-17,30-31`).
-- Inyección de resultados serializada con `System.Text.Json` para evitar romper el JS / XSS (QR y sendAPI; `QrCommandHandler.cs:46`).
+### 7.1 `IUiDispatcher`
 
----
+`LibApp/Devices/Common/Services/IUiDispatcher.cs` — abstracción de `MainThread.BeginInvokeOnMainThread`. Existe «porque `MainThread` es un estático de plataforma: un ViewModel que lo invoque directo **no se puede ejercitar fuera de un dispositivo**, aunque no tenga una sola directiva `#if`». Lo necesita **solo el overlay de Red**, que es el único reactivo; los demás se disparan desde el hilo de UI.
 
-## 5. Dispositivos consolidados en `LibApp/Devices/`
+### 7.2 `NetworkService` — la sonda de internet real
 
-Cada dispositivo **reutiliza el mismo patrón que su ejemplo aislado** (Service tipado + Overlay VM que hereda de `StatusOverlayViewModel`). No se re-documenta cada uno aquí: ver el índice temático del dispositivo.
+`IsOnline` mira `NetworkAccess`, pero `CheckUrlAsync` hace una **sonda activa** a `http://www.msftconnecttest.com/connecttest.txt` (10 s de tope) y valida que el cuerpo contenga `"Microsoft Connect Test"`. Si hay enlace pero el cuerpo no coincide, es un **portal cautivo u operadora sin crédito que redirige con 200 OK** → `Offline`.
 
-| Dispositivo (`LibApp/Devices/…`) | Reutiliza el ejemplo aislado (`Ejemplos_Devices/…`) | Índice |
-|---|---|---|
-| `GPS/` (`GpsService`, `GpsOverlayViewModel`) | `GPS/Ejemplo_Maui_GPS` | Índice 01–07 (GPS) |
-| `Camera/Pages/` (MediaPicker + Selfie) | `Camera/Ejemplo_Photo_MiMediaPicker_Callback*` | Índice 01–07 (Cámara) |
-| `Images/` (`ImageDeviceAutoRotateService`, `SelfieMaskDrawable`) | `Camera/…_Normalizacion` (MetadataExtractor + SkiaSharp) | Índice 01–07 (Imágenes) |
-| `Phone/` (`CallService`, `CallOverlayViewModel`, `CallMode`) | `Phone/Ejemplo_Maui_DirectCall` · `Ejemplo_Maui_Dialer` | Índice 01–07 (Teléfono) |
-| `QRLector/` (`QRLectorPage`, `QRContent`) | `QR/BSN.LectorQR*` (BarcodeScanning.Native) | Índice 01–07 (QR) |
-| `Networks/` (`NetworkService`, `NetworkOverlayViewModel`) | `Red/Ejemplo_Maui_Connectivity` | Índice 01–07 (Red) |
-| `MotorDSL/` (impresión térmica) | `Printer/Ejemplo_MotorDSL` · `Ejemplo_ThermalPrinter` | **[Índice 03](03_Impresion-Termica.md)** |
+Detalle de UX documentado (`:37-47`): la petición **siempre** va a la URL de la sonda, pero lo que se **reporta** es el host de la URL que el usuario quiso abrir. Antes se reportaba el de la sonda y el mensaje de DNS nombraba `www.msftconnecttest.com`, un dominio que el usuario nunca visitó.
 
-Base común de overlays: `Common/Controls/StatusOverlayView.xaml` + `Common/ViewModels/StatusOverlayViewModel.cs` (estados `None/Busy/Error`, `ShowBusy/ShowError/Hide`, `OverlayAction`). Todos los `*OverlayViewModel` (GPS, Network, Call, **Printer**) heredan de esa base — ver `PrinterOverlayViewModel.cs:17`.
+`NetworkResult`: `Online` · `Offline` · `Timeout(Url)` · `DnsFailure(Host)` · `HttpFailure(StatusCode, Url)` · `RequestFailure(Message)`.
 
-### 5.1 Armonización de overlays y costuras de test
+### 7.3 `PrintCommandHandler` — el caso con documento remoto
 
-Los cuatro overlays (GPS, Red, Telefonía, Impresión) se llevaron al mismo patrón que el de impresión ya había estrenado: **resultado tipado → una pantalla por variante → catálogo de errores con código → costura de interfaz**. Se aplicó el plan `Ejemplos_Maui_Devices.Documentacion/Analisis/Plan-Armonizacion-Overlays.md`; la librería `MotorDsl.*` no se tocó (sigue en 1.0.13).
+A diferencia del PoC `Ejemplo_MotorDSL_Dialog` ([índice 03](03_Impresion-Termica.md)), acá el documento **viene por red**: `GET https://aplicada.somee.com/api/Tikects/comprobante` (30 s de tope) → validación de contrato → render con `IDocumentEngine` → impresión. Por eso `DocumentResult` y los códigos `PRN-DOC-NET` / `PRN-DOC-CONTRACT` **sí son alcanzables** en la app. El handler se pasa a sí mismo como reintento del overlay, de modo que «Reintentar» ante un fallo de red **vuelva a la red**.
 
-| Aspecto | Antes | Ahora | Fuente |
-|---|---|---|---|
-| Costura de servicio | los VM dependían del tipo concreto (estáticos MAUI `Preferences`/`Permissions`/`AppInfo`, no ejercitables fuera del dispositivo) | interfaces `IGpsService`, `ICallService`, `INetworkService`, `IPrinterService` — registradas en DI (`MauiProgram.cs:83,93-97`) | `*/Services/I*.cs` |
-| Hilo de UI | `NetworkOverlayViewModel` tocaba `MainThread`/`AppInfo` directo (único overlay reactivo) | delega en `IUiDispatcher` (`Common/Services/IUiDispatcher.cs`; impl. `MainThreadDispatcher`) | `NetworkOverlayViewModel.cs:25,34,43` |
-| Errores GPS/Telefonía | GPS escribía el fallo en `Coordenadas` (sin binding) y ocultaba el overlay; Telefonía mostraba `f.Message` crudo en inglés | catálogos `GpsErrorCatalog` (`GPS-*`) y `CallErrorCatalog` (`TEL-*`), espejo del de impresión (`PRN-*`): mensaje accionable en español + código dictable, con el técnico preservado para log | `GPS/Models/GpsErrorCatalog.cs`, `Phone/Models/CallFailure.cs` |
-| Botón primario | omitir `Primary` no daba error → pantallas con solo «Cerrar» quedaban sin botón destacado | toda pantalla de error tiene exactamente un `Primary`; «Cerrar» pasa a primario cuando es la única acción | invariante I-4 (§9) |
-| Código muerto | `case Success` inalcanzable (un guard previo retornaba), props `Coordenadas`/`Estado` sin consumidor, `GpsService.CheckAsync()`/`Map()` sin llamadores | eliminados | `GpsService.cs` |
-| Fallo de DNS | `NetworkService.CheckUrlAsync(url,…)` ignoraba `url` y reportaba el host de la sonda | reporta el host del sitio pedido (la sonda sigue a un endpoint fijo para detectar portal cautivo) | `Networks/Services/NetworkService.cs` |
+Perfiles registrados en la app (tres, contra uno del PoC): `("thermal_58mm", 32, "escpos-bitmap")`, `("a4-pdf", 80, "pdf")`, `("pdf", 48, "pdf")`.
 
-Los tres records de fallo (`GpsFailure`, `CallFailure`, `PrintFailure`) comparten forma (`Code · Title · UserMessage · TechnicalMessage` [+ `Exception?` en impresión]) deliberadamente **sin** unificarse en `Common/` (decisión documentada en `GpsFailure.cs`).
+## 8. `LibApp/` — el paquete de dispositivos
 
----
+Todo el código reutilizable cuelga de `LibApp/` con namespace raíz **`LibApp.*`** (no `Ejemplo_Maui_Hibrida.LibApp.*`), alineado con el link por comodín del `.csproj` de tests.
 
-## 6. Flujo end-to-end de impresión (`action=print`)
-
-Caso testigo del puente: la web dispara `?action=print`, la app trae un `PrintDocument` JSON del backend Blazor, lo renderiza a ESC/POS con MotorDSL y lo imprime por Bluetooth mostrando un overlay que gestiona permisos, descubrimiento, selección y conexión.
-
-### 6.1 Piezas
-
-| Pieza | Rol | Fuente |
-|---|---|---|
-| `PrintCommandHandler` | GET al comprobante, render, delega en el overlay | `Handlers/PrintCommandHandler.cs` |
-| `IDocumentEngine` (MotorDsl.Core) | `Render(jsonDoc, DeviceProfile) → RenderResult` (bytes ESC/POS) | inyectado; `PrintCommandHandler.cs:28,49` |
-| `PrinterOverlayViewModel` | Orquesta permisos→discover→selección→conectar→imprimir + reintentos | `MotorDSL/ViewModels/PrinterOverlayViewModel.cs` |
-| `PrinterService` | Compone `IThermalPrinterService` (permisos, discover, connect, send) | `MotorDSL/Services/PrinterService.cs` |
-| `IThermalPrinterService` (MotorDsl.Maui/Bluetooth) | Transporte real BT Classic SPP (Android) | `AddBluetoothPrinterTransport()` (`MauiProgram.cs:63`) |
-| Backend `TikectsController` | Sirve el `PrintDocument` hardcodeado | `Ejemplo_ws_Blazor/Controllers/TikectsController.cs` |
-
-Detalles del handler (`PrintCommandHandler.cs`):
-- Endpoint fijo: `https://aplicada.somee.com/api/Tikects/comprobante` (GET, timeout 30s).
-- **Render SIEMPRE primero**, antes de tocar la impresora. El JSON crudo se pasa tal cual al engine; se deserializa a `PrintDocument` sólo para **validar el contrato**.
-- `DeviceProfile("58HB6", 32, "escpos-bitmap")` con capacidades `supports_bitmap`, `bitmap_max_width_px=320`, `bitmap_binarization_threshold=128`.
-- **Se delega SIEMPRE en el overlay**, también con el render en error: es el único componente que puede comunicarle algo al usuario. El guard de `ImprimirAsync` cubre ese caso.
-
-`ObtenerDocumentoAsync` devuelve un **`DocumentResult` tipado** (`MotorDSL/Models/DocumentResult.cs`) en lugar de un string vacío ante cualquier fallo:
-
-| Variante | Causa | Tratamiento |
-|---|---|---|
-| `Ok(json)` | Contrato válido | Render → `ImprimirAsync` |
-| `NetworkError(technical)` | Timeout, caída de red, backend no disponible | `PRN-DOC-NET` · **Reintentable**: el botón rehace el GET (`ImprimirComprobanteAsync` se pasa a sí mismo como delegado) |
-| `InvalidContract(technical)` | Respuesta no parseable o sin `Root.Type` | `PRN-DOC-CONTRACT` · No reintentable: va a soporte |
-
-> **Por qué importa.** Antes, cualquier fallo devolvía string vacío → render con errores → `return` temprano **sin mostrar el overlay**: el usuario tocaba «imprimir», esperaba hasta 30 s y la pantalla no cambiaba. Ahora el overlay muestra una capa Busy durante el GET y una capa de error accionable después. Ver el catálogo de códigos en el [índice 03 §10.3](03_Impresion-Termica.md).
-
-### 6.2 Diagrama de secuencia
-
-```mermaid
-sequenceDiagram
-    participant Web as Sitio Blazor (WebView)
-    participant VM as MainViewModel
-    participant PH as PrintCommandHandler
-    participant API as Backend Blazor (TikectsController)
-    participant ENG as IDocumentEngine (MotorDSL)
-    participant OVM as PrinterOverlayViewModel
-    participant SVC as PrinterService / IThermalPrinterService
-    participant BT as Impresora Bluetooth
-
-    Web->>VM: Navigating(url ?action=print)
-    VM->>VM: plan = Plan(url); e.Cancel = plan.Cancel
-    VM->>PH: ExecuteAsync(plan,url) → HandleAsync(url)
-    PH->>OVM: MostrarObteniendoDocumento() (capa Busy)
-    PH->>API: GET /api/Tikects/comprobante
-    API-->>PH: 200 JSON PrintDocument (árbol PrintNode)
-    PH->>PH: DocumentResult: Ok / NetworkError / InvalidContract
-    alt documento OK
-        PH->>ENG: Render(json, DeviceProfile 58HB6/escpos-bitmap)
-        ENG-->>PH: RenderResult (bytes ESC/POS) o Errors
-        PH->>OVM: ImprimirAsync(render)
-        Note over OVM: render en error → PRN-DOC-RENDER (guard de ImprimirAsync)
-        OVM->>SVC: EnsurePermissionsAsync() (BLUETOOTH_SCAN/CONNECT)
-        SVC-->>OVM: Granted / Denied…
-        OVM->>SVC: DiscoverAsync() (kind:"bluetooth")
-        SVC-->>OVM: Found / Empty / BluetoothOff / PermissionRevoked / NotSupported
-        Note over OVM: reusa default (Preferences) o muestra selector
-        OVM->>SVC: ConnectAsync(device) → guarda default_printer_id
-        Note over OVM: si falla la default → PRN-DEV-ABSENT
-        OVM->>SVC: SendAsync(bytes)
-        SVC->>BT: SendBytesAsync → impresión física
-        BT-->>OVM: PrintResult.Success → Hide()
-        Note over OVM: si falla → PrintFailure con código (papel, tapa, enlace…)
-    else NetworkError / InvalidContract
-        PH->>OVM: MostrarFalloDocumento(PRN-DOC-NET | PRN-DOC-CONTRACT)
-        Note over OVM: PRN-DOC-NET ofrece Reintentar → rehace el GET
-    end
+```
+LibApp/
+├── CustomWebView/Behaviors/     IWebViewBridge, WebViewBridge, WebViewBridgeBehavior
+│              /Converts/        WebNavigating/NavigatedEventArgsConverter
+├── Devices/
+│   ├── Camera/Pages/            MyMediaPickerPage, MyMediaSelfiePickerPage  → índice 01
+│   ├── Common/                  StatusOverlayView(+Model), IUiDispatcher
+│   ├── GPS/                     Models, Services, ViewModels, ApiRelayService → índice 04
+│   ├── Images/                  IImageService, ImageDeviceAutoRotateService, SelfieMaskDrawable
+│   ├── MotorDSL/                DTOs/Print, Models, Pages, Services, ViewModels → índice 03
+│   ├── Networks/                Models, Services, ViewModels                   → índice 07
+│   ├── Phone/                   Models, Services, ViewModels                   → índice 06
+│   └── QRLector/                QRContent, QRLectorPage                        → índice 02
+└── UrlCommands/                 contrato, enum, plan, dispatcher, Handlers/
 ```
 
-### 6.3 Overlay de impresión — máquina de estados
+`ApiRelayService` vive en `Devices/GPS/` aunque lo usa el comando `sendAPI` (relay REST genérico), no el GPS.
 
-`PrinterOverlayViewModel` (`MotorDSL/ViewModels/PrinterOverlayViewModel.cs`) maneja cada escenario con su UI y acciones de reintento, sin `try/catch` en el VM:
+El QR de la híbrida usa **`BarcodeScanning.Native.Maui`** — la recomendación 🥇 del estudio de NuGets ([índice 02 §2](02_QR.md)) — con `.UseBarcodeScanning()` en el arranque.
 
-| Estado | Disparador | UI / acciones | Líneas |
-|---|---|---|---|
-| Render inválido | `!render.IsSuccessful` | "No se pudo generar el documento" + Cerrar | `:34-40` |
-| No soportado | `!_service.IsSupported` (no-Android) | "Impresión no disponible" | `:43-49` |
-| Permiso | `EnsurePermissionsAsync != Granted` | Pedir permiso / Abrir configuración / restringido | `:52-53,128-152` |
-| Sin impresoras | `DiscoverResult.Empty` | Reintentar / Cerrar | `:70-75` |
-| Bluetooth off | `DiscoverResult.BluetoothOff` | Reintentar / Abrir configuración | `:77-83` |
-| Varias impresoras | `Found` sin default y >1 | Selector dinámico por device | `:66-67,93-102` |
-| Conexión falló | `ConnectAsync == false` | Reintentar / Elegir otra / Cerrar | `:108-116` |
-| Éxito | `PrintResult.Success` | `Hide()` | `:120` |
+## 9. La suite de tests
 
-`PrinterService` reusa la impresora predeterminada si está en la lista detectada (`Preferences["default_printer_id"]`, `:72-77`) y la memoriza al conectar (`:80-85`). BT Classic SPP **sólo Android** (`:21-26`); permisos vía `BluetoothPermissions` custom (`Services/BluetoothPermissions.cs`).
+`Ejemplo_Maui_Hibrida.Tests` — **67 `[Fact]` + 11 `[Theory]`** repartidos en 9 archivos.
 
-### 6.4 Config de impresión (`MauiProgram.cs:54-63`)
+**El TFM es `net10.0` plano, no `net10.0-android`**: la suite corre en el runner de escritorio y en CI, sin emulador ni dispositivo. Es viable «porque los ViewModels no tienen una sola directiva `#if`: todo el código de plataforma vive en los servicios, detrás de `I*Service`».
 
-```csharp
-.Services.AddMotorDslEngine()
-    .AddProfiles(p => {
-        p.Add(new DeviceProfile("thermal_58mm", 32, "escpos-bitmap"));
-        p.Add(new DeviceProfile("a4-pdf", 80, "pdf"));
-        p.Add(new DeviceProfile("pdf", 48, "pdf"));
-    })
-    .AddMotorDslMaui()
-    .Services.AddBluetoothPrinterTransport();
-```
+**Linkeo de fuentes, no `ProjectReference`**: un proyecto `net10.0` no puede referenciar uno `net10.0-android`, y extraer `LibApp/` a una librería multi-target contradiría la decisión de que cada ejemplo sea autocontenido y copiable. Se linkea solo lo *platform-free*:
 
-Paquetes MotorDsl.* **1.0.13** (Core, Parser, Rendering, Extensions, Printing.Abstractions, Bluetooth, Maui) (`Ejemplo_Maui_Hibrida.csproj:118-126`). Requiere permisos `BLUETOOTH_SCAN`/`BLUETOOTH_CONNECT` + ubicación en el manifest (documentado en `LibApp/Devices/MotorDSL/README.md`).
+| Entra | Queda afuera |
+|-------|--------------|
+| `StatusOverlayViewModel`, los cuatro `*OverlayViewModel` | `PrinterService`, `GpsService`, `CallService`, `NetworkService` (tienen `#if ANDROID` y estáticos de MAUI: `Preferences`, `Permissions`, `AppInfo`) |
+| Todos los `Models/` (resultados tipados y catálogos) | El resto de `Handlers/` (tocan `Shell`/`Application`) |
+| Solo las **interfaces** de servicio (los tests las implementan con fakes) | |
+| `LibApp/UrlCommands/*.cs` **por comodín** (todo el paquete raíz es platform-free) | |
+| `GpsCommandHandler` explícito, para cubrir el round-trip de cultura de las coordenadas | |
+| `MainViewModel`, sujeto de prueba del guard de reentrada | |
 
----
+### 9.1 Los cinco invariantes ejecutables
 
-## 7. Backend Blazor (`Ejemplo_ws_Blazor`)
+`Invariantes.cs` (81 l.) — «cada aserción de acá nació de un defecto real encontrado en el código»:
 
-Web mínima (Razor Components Interactive Server + controllers API + OpenAPI/Scalar). Pipeline en `Program.cs`: `AddRazorComponents().AddInteractiveServerComponents`, `AddControllers`, `AddOpenApi`, `UseForwardedHeaders` (para el proxy TLS de somee), `MapScalarApiReference` (`/scalar`).
+| # | Invariante | El defecto que lo originó |
+|---|-----------|---------------------------|
+| **I-1** | Toda variante no-`Success` produce **exactamente una pantalla**, con título, mensaje y al menos una salida | Un `case` que solo hacía `Hide()` dejaba al usuario sin respuesta: tocar «Imprimir» y que no pasara nada |
+| **I-2** | Toda variante del resultado tipado tiene su pantalla — `VariantesDe<T>()` las descubre por reflexión sobre los `sealed record` anidados | «El defecto más caro del patrón: modelar una variante y no producirla nunca». C# no lo verifica: un `switch` sin un caso compila igual |
+| **I-3** | Ningún mensaje crudo del sistema llega al usuario | El usuario leía literalmente `Print failed after 1 attempt(s): paper out` |
+| **I-4** | Toda pantalla de error tiene **exactamente un** botón primario | `Primary` es «el `DataTrigger` de `Secondary` no disparó»: omitirlo no da error de compilación, simplemente ninguna acción destaca |
+| **I-5** | *(ver `Analisis/Plan-Armonizacion-Overlays.md` §2 en el repo de documentación)* | |
 
-### 7.1 Endpoints
+Archivos de test: `BaseOverlayTests` (7), `PrinterOverlayTests` (19), `PrinterErrorCatalogTests` (11), `GpsOverlayTests` (11), `NetworkOverlayTests` (9), `CallOverlayTests` (7), `GpsCommandHandlerTests` (6), `UrlCommandDispatcherTests` (5), `NavigatingReentrancyTests` (3).
 
-| Endpoint | Método | Request / DTO | Response | Uso desde la app | Fuente |
-|---|---|---|---|---|---|
-| `/api/Tikects/comprobante` | GET | — | `PrintDocument` (JSON, árbol `PrintNode`) hardcodeado | Documento imprimible del `PrintCommandHandler` (§6) | `Controllers/TikectsController.cs:27-44` |
-| `/api/GeoReporter/track` | POST | `LocationDto {Latitude, Longitude}` | `string "lat-lng"` | Destino del relay `sendApi` (host `geolocate.somee.com`) | `Controllers/GeoReporterController.cs:17-41` |
-| `/api/pagofake/pago` | POST | form (sin antiforgery) | `302` a host externo | Prueba de redirect cross-host en el WebView | `Controllers/PagoFakeController.cs:11-13` |
-| `/api/pagofake/pago-form` | GET | — | HTML con form auto-submit a otro host | Prueba de POST auto-enviado cross-host | `Controllers/PagoFakeController.cs:17-26` |
-| `/openapi/v1.json` · `/scalar` | GET | — | OpenAPI + UI Scalar | Documentación de API | `Program.cs:39-41` |
+## 10. `Ejemplo_ws_Blazor` — el backend que la ejercita
 
-Páginas Blazor (`Components/Pages/`): `Datos.razor` (prueba de interactividad), `Panel.razor` (botones que disparan el Canal B), `GeoLocalizacion.razor` (`/geolocalizacion` — muestra `Latitud`/`Longitud` recibidas por query), `Redirigir.razor`, `Error.razor`, `NotFound.razor`.
+Blazor Server (`AddInteractiveServerComponents`) + controllers + OpenAPI con UI de **Scalar** en `/scalar`. Paquetes: `Microsoft.AspNetCore.OpenApi` 10.0.8, `Scalar.AspNetCore` 2.14.14.
 
-> **Camino web de GPS — los DOS modos de entrega conviven en `Panel.razor`.** El panel expone **dos tarjetas GPS**, una por modo de `CommandDelivery` (§4.3); es el único comando que se ejercita desde la web en sus dos formas, y sirve de demo comparativa lado a lado:
->
-> | Tarjeta (`<h4>`) | Handler Blazor | URL que navega | Modo | Resultado |
-> |---|---|---|---|---|
-> | «Solicitar coordenadas» | `OnSolicitarCoordenadas()` | `/geolocalizacion?coordenadas=coordenadas` (**sin** `param`) | `Substitution` | La app re-navega a `/geolocalizacion?Latitud=…&Longitud=…`; `GeoLocalizacion.razor` lee los query params (`[SupplyParameterFromQuery]`), muestra `{"Latitud": …, "Longitud": …}` y ofrece «Volver» a `/panel`. Su `<div id="contenidoCoordenada">` está **comentado** (`Panel.razor:20`) porque en este modo no se inyecta nada |
-> | «Solicitar GeoPosicion» | `OnSolicitarGeoposicion()` | `/panel?coordenadas=coordenadas&param=contenidoCoordenada` (**con** `param`) | `Injection` | La app cancela la navegación, toma el GPS e inyecta `"Latitud: …, Longitud: …"` en `#contenidoCoordenada` por JS, sin recargar el panel (`Panel.razor:32`) |
->
-> Ambos botones están rotulados «Tomar Coordenadas» — se distinguen por el `<h4>` de la tarjeta y por el `<p>` descriptivo («…en una página nueva» vs. «…y las inyecta al DOM», `Panel.razor:19` / `:31`), no por el rótulo. En `Substitution`, si el dispositivo falla la app re-navega igual con el centinela `0.0/0.0` y la página lo interpreta como «sin coordenada» (invariante §4.3). Fuentes: `Panel.razor:12-34` (tarjetas) y `:168-209` (bloque `#region coordenadas`, con subregiones `page redict` → `OnSolicitarCoordenadas` `:173-178` e `inject en el DOM` → `OnSolicitarGeoposicion` `:184-189` + `[SupplyParameterFromQuery] Latitud/Longitud` y `MostrarCoordeandas()`), `GeoLocalizacion.razor`.
->
-> ⚠️ **Trampa de lectura:** el comentario XML sobre `OnSolicitarCoordenadas` (`Panel.razor:175-176`) dice «INYECTA el resultado en `#contenidoCoordenada` … Mismo patrón que foto/selfie/QR: `param={id}`», pero ese método es el del modo **`Substitution`** (no lleva `param` y no inyecta): el comentario quedó del camino anterior y se copió tal cual al método nuevo. Vale para `OnSolicitarGeoposicion`, no para `OnSolicitarCoordenadas`. Guiarse por la URL, no por el comentario.
->
-> Nota menor: `Panel.razor` pasó de `@inject NavigationManager Navigation` a una propiedad `[Inject] NavigationManager _navigationManager`.
+| Ruta | Página | Rol |
+|------|--------|-----|
+| `/` y `/datos` | `Datos.razor` | Entrada |
+| `/panel` | `Panel.razor` (322 l.) | **El banco de pruebas**: una tarjeta por comando |
+| `/geolocalizacion` | `GeoLocalizacion.razor` | Destino del modo `Substitution` del GPS; si llegan vacías usa el centinela `0.0/0.0` |
+| `/redirigir` | `Redirigir.razor` | Redirección a sitio externo (en iOS se espera que abra Safari) |
+| `/not-found`, `/Error` | | `UseStatusCodePagesWithReExecute("/not-found")` |
 
-### 7.2 DTOs de impresión (`DTOs/Print/`) — el "DSL"
+| Controller | Endpoint | Para qué |
+|------------|----------|----------|
+| `GeoReporterController` | `POST /api/GeoReporter/track` | Recibe un `LocationDto`; es el destino del comando `sendAPI` |
+| `TikectsController` | `GET /api/Tikects/comprobante` | Devuelve un `PrintDocument` hardcodeado — el mismo formato que consume MotorDsl. Espeja el patrón real de `PrintController.PrintActaById` de GDA.Core.API, pero sin base de datos |
+| `PagoFakeController` | `POST /api/pagofake/pago`, `GET /api/pagofake/pago-form` | Reproduce dos formas de pago externo: 302 cross-host y HTML que auto-envía un form POST a otro host |
 
-Réplica del contrato de GDA.Core.API.Client (`Models/PrintActa/*`). El árbol serializado a JSON **es** lo que MotorDsl renderiza. **Definidos por duplicado** (idénticos) en el backend y en la app para desacoplarlos:
+Los DTOs de impresión (`DTOs/Print/`: `PrintDocument`, `PrintNode`, `PrintStyle`, `N`) están **duplicados a propósito** en la app (`LibApp/Devices/MotorDSL/DTOs/Print/`) y en el backend: son el contrato entre ambos.
 
-| DTO | Rol | Backend | App (LibApp) |
-|---|---|---|---|
-| `PrintDocument` | Raíz `{id, version, format:"integrated", root}` | `DTOs/Print/PrintDocument.cs` | `LibApp/Devices/MotorDSL/DTOs/Print/PrintDocument.cs` |
-| `PrintNode` | Nodo genérico: `text` \| `image`(bitmap/qrcode) \| `container` | `DTOs/Print/PrintNode.cs` | idem |
-| `PrintStyle` | `align` (left/center/right) + `bold` | `DTOs/Print/PrintStyle.cs` | idem |
-| `N` | Fábrica declarativa de nodos (`Text/Separator/Image/QrCode/Container`) | `DTOs/Print/N.cs` | idem |
+`Program.cs` configura `ForwardedHeaders` **vaciando `KnownNetworks`/`KnownProxies`** para que se acepten las cabeceras detrás del proxy de somee, con el tradeoff anotado en el propio archivo («solo hacelo si el borde de somee es la única vía de entrada»). El comentario de `:16-20` explica por qué `UseHttpsRedirection` importa: la lógica sensible al esquema puede derivar `ws://` en vez de `wss://`, y en iOS **ATS bloquea** un `ws://` desde una página `https`, mientras que Android con `usesCleartextTraffic` lo deja pasar.
 
-`TikectsController.BuildComprobanteTicketHardcoded()` (`:51-160`) arma un comprobante de ticket municipal representativo: logo bitmap (PNG base64), secciones de texto normal/negrita/centrado, separadores, contenedores anidados (comercio, inmueble) y un `N.QrCode(...)` al detalle del ticket.
+## 11. Observaciones
 
-### 7.3 Assets
+- ⚠️ **Comentario XML que describe el modo contrario.** En `Panel.razor`, el comentario sobre `OnSolicitarCoordenadas` dice «la app … **INYECTA** el resultado en `#contenidoCoordenada` … Mismo patrón que foto/selfie/QR: `param={id}`», pero ese método es el del modo **`Substitution`** (navega a `/geolocalizacion?coordenadas=coordenadas`, sin `param`, y no inyecta). El texto quedó del camino anterior y se copió tal cual al método nuevo. Vale para `OnSolicitarGeoposicion`, no para `OnSolicitarCoordenadas`. **Guiarse por la URL, no por el comentario.**
+- Las dos tarjetas de GPS del panel están rotuladas **«Tomar Coordenadas» las dos**: se distinguen por el `<h4>` («Solicitar coordenadas» vs. «Solicitar GeoPosicion») y por el `<p>`, no por el botón. El `<p>` de la segunda tampoco describe su modo: dice «en una página nueva», que es lo que hace la primera.
+- `QrCommandHandler` conserva **comentado** el camino por `Shell.Current.GoToAsync` + `TaskCompletionSource` y usa `Application.Current.Windows[0].Page.Navigation.PushAsync`, distinto de cámara y selfie, que sí navegan por Shell.
+- `CallCommandHandler` llama a un **número hardcodeado** (`NumeroPorDefecto = "3434807427"`): el comando `phone=phone` no toma el número de la URL.
+- `MainViewModel.Volver` y `PrintCommandHandler` apuntan a `https://aplicada.somee.com`: es el despliegue del backend.
+- Hay referencias a **ADR-0001 y ADR-0009** y a `Analisis/Plan-Armonizacion-Overlays.md` repartidas por el código; esos documentos viven en el repositorio de documentación ([índice 10](10_Documentacion-Transversal.md)), no en el del código.
 
-| Asset | Uso |
-|---|---|
-| `wwwroot/ejemplos/qr.ejemplo.png` | Imagen QR de ejemplo |
-| `wwwroot/pago-fake.html` · `pago-fake-web.html` | Páginas estáticas de prueba de flujo de pago cross-host |
-| `wwwroot/app.css`, `favicon.png` | Estáticos base |
+## 12. Fuentes
 
----
-
-## 8. Decisiones y gotchas
-
-| Tema | Decisión / gotcha | Fuente |
-|---|---|---|
-| Reorganización a `LibApp/` | Cada dispositivo aislado se consolidó como subcarpeta `LibApp/Devices/<X>/` con Models/Services/ViewModels/Pages; los overlays comparten base `StatusOverlayViewModel` | árbol §2 |
-| Puente abierto/cerrado | Agregar un comando = 1 clase `IUrlCommandHandler` + 1 línea DI; sin `switch`. Orden de registro = prioridad (*first-match-wins*) | `MauiProgram.cs:116-123`, `UrlCommandDispatcher.cs` |
-| `e.Cancel` síncrono (Plan 1) | Debe fijarse antes del primer `await`; por eso la clasificación `Plan(url)` (sync) se separa de `ExecuteAsync(plan,url)` (async). Cancelar = OR de `CancelsNavigation` sobre los matches, no «es comando ⇒ cancelo» | `MainViewModel.cs:93-96`, `UrlCommandDispatcher.cs` |
-| Entrega por comando, no por handler | `CommandDelivery` (`None`/`Injection`/`Substitution`) se decide por URL vía `DeliveryFor(url)`: GPS inyecta con `param`, sustituye sin él. `Substitution` **obliga** a re-navegar (centinela `0.0/0.0` si falla) o la navegación queda muerta | §4.3, `CommandDelivery.cs`, `GpsCommandHandler.cs` |
-| Invariante de continuación | `#if DEBUG` + `Debug.Fail`: si el plan cancela pero ejecuta un handler no-cancelable, o un `Substitution` no re-navega → falla ruidoso en el runner en vez de colgar el WebView | `UrlCommandDispatcher.cs` |
-| WebView desacoplado | El VM/handler nunca tocan el control; van por `IWebViewBridge`; la behavior necesita que se le propague el `BindingContext` a mano | `WebViewBridgeBehavior.cs:22-27` |
-| Render antes de imprimir | `PrintCommandHandler` renderiza primero y sólo valida el contrato deserializando; pasa el JSON **crudo** al engine | `PrintCommandHandler.cs:38-49,79-90` |
-| MotorDSL 1.0.13 | 7 paquetes `MotorDsl.*` alineados a 1.0.13; perfiles térmico/PDF; transporte BT sólo Android | `csproj:118-126`, `PrinterService.cs:21-26` |
-| Impresión predeterminada | Se memoriza `default_printer_id` en `Preferences` y se reusa si aparece en el discover | `PrinterService.cs:72-85` |
-| Inyección segura al DOM | Resultados (QR, sendAPI) serializados con `System.Text.Json` para evitar romper el JS / XSS | `QrCommandHandler.cs:46`, `SendApiCommandHandler.cs:70-77` |
-| Guardrail de red | `ApiRelayService` restringe hosts a una allowlist; verbos ≠ Post/Get → `Blocked` | `ApiRelayService.cs:14-17,30-31` |
-| Bug de iOS (Canal A) | El circuito SignalR no se sostiene en WKWebView sobre host gratuito; la web se ve pero los `@onclick` mueren. Diagnóstico completo fuera de este índice | `Docs/web-hibrida/maui-hibrido.md` §7 |
-| Target sólo Android/iOS | El `.csproj` no compila Windows (`WindowsPackageType=None`); BT Classic SPP es Android-only | `csproj:4-5`, `PrinterService.cs:21-26` |
-| Costura de interfaz por servicio | Los `*OverlayViewModel` dependen de `I*Service` (no del tipo concreto) → registrables en DI y sustituibles por fakes en test; `IUiDispatcher` abstrae `MainThread` para el único overlay reactivo (Red) | §5.1, `MauiProgram.cs:83,93-97` |
-| Tests sin dispositivo | Proyecto `net10.0` plano que linkea fuentes platform-free y codifica los 5 invariantes del patrón; una variante sin pantalla rompe la suite | §9 |
-
----
-
-## 9. Suite de tests (`Ejemplo_Maui_Hibrida.Tests`)
-
-**Primer proyecto de tests de toda la solución.** ~125 tests xUnit (116 de overlays + **9 nuevos del puente** por Plan 1; uno se saltea en DEBUG, ver abajo) sobre `net10.0` plano que corren en el runner de escritorio/CI **sin emulador ni dispositivo** — viable porque los ViewModels ya no tocan la plataforma y los servicios quedan detrás de interfaces (§5.1). Fuente: `Ejemplos_Devices/Integrada/Ejemplo_Maui_Hibrida.Tests/`.
-
-> **Tests del puente (Plan 1).** El `.csproj` pasó a linkear **todo** `LibApp/UrlCommands/*.cs` por comodín (contrato, `CommandDelivery`, `UrlPlan`, dispatcher — todo platform-free; sólo `Handlers/GpsCommandHandler.cs` se linkea explícito) (`.csproj:65-78`). Nuevos: `UrlCommandDispatcherTests` (5 métodos: sin-match no cancela, handler no-cancelable no cancela, un cancelable entre varios cancela el plan, `OnMatchedSync` corre para todos los matches, y first-match-wins — este último **skip en DEBUG** porque dispara el `Debug.Fail` del invariante de continuación, corre en Release). `GpsCommandHandlerTests` ganó 4 casos: `Substitution` sin señal re-navega igual con centinela `0.0/0.0`; `Injection` sin señal ni re-navega ni inyecta; y `DeliveryFor` distingue los dos modos.
-
-| Aspecto | Detalle | Fuente |
-|---|---|---|
-| Target / paquetes | `net10.0` (no `-android`), `UseMaui=true`; `Microsoft.NET.Test.Sdk 17.11.1`, `xunit 2.9.2`, `xunit.runner.visualstudio 2.8.2`, `CommunityToolkit.Mvvm 8.4.2`, `MotorDsl.Core`/`Printing.Abstractions 1.0.13` | `Ejemplo_Maui_Hibrida.Tests.csproj` |
-| Acceso al código | **linkeo de fuentes** (`<Compile Include… Link=…>`), no `ProjectReference`: la app es `net10.0-android` y un `net10.0` plano no puede referenciarla. Solo se linkean Models, las interfaces `I*Service`/`IWebViewBridge`/`IUiDispatcher` y los 4 `*OverlayViewModel` — nunca los servicios concretos (tienen `#if ANDROID` y estáticos MAUI) | `.csproj:41-67` |
-| Dobles | `Fakes/Fakes.cs`: fakes a mano de las 6 interfaces (`FakeGpsService`, `FakeCallService`, `FakeNetworkService`, `FakeUiDispatcher` [ejecuta inline], `FakeWebViewBridge`, `FakePrinterService`) | `Fakes/Fakes.cs` |
-
-**Los cinco invariantes del patrón, ejecutables** (`Invariantes.cs`, helpers invocados por cada test de overlay):
-
-| # | Invariante | Cómo se comprueba |
-|---|---|---|
-| I-1 | Toda variante no-`Success` produce **exactamente una pantalla** | `Mode==Error`, `Actions.Count>0`, `Title`/`Message` no vacíos |
-| I-2 | Toda variante del resultado tipado **tiene** pantalla (es alcanzable) | reflexión sobre los tipos sellados anidados vs. cubiertos por los tests |
-| I-3 | Ningún **mensaje crudo** del sistema llega al usuario | `Assert.False(Message.Contains(textoTecnico))` |
-| I-4 | Toda pantalla de error tiene **un único** botón primario | cuenta `Actions` con `Style==Primary` == 1 |
-| I-5 | El VM **no colapsa** la variante: devuelve la que recibió | compara tipo de entrada vs. salida (en `GpsOverlayTests`) |
-
-> Agregar una variante sin pantalla ahora **rompe la suite** (I-2) — es lo que C# no verifica y lo que dejó a `BluetoothOff` inalcanzable durante toda la vida del PoC (ver [índice 03 §10.2](03_Impresion-Termica.md)). La suite arrancó en 34 rojos (GPS 21, Telefonía 7, Impresión 3, Red 3) que reproducían los defectos documentados, y cerró en 116/116. Pendiente: verificación en dispositivo real (que la decisión del VM llegue a la pantalla y que los glyphs existan en la fuente). No hay workflow CI para esta suite (índice 09).
-
-Archivos de test: `BaseOverlayTests` (máquina None/Busy/Error de `StatusOverlayViewModel`), `GpsOverlayTests`, `CallOverlayTests`, `NetworkOverlayTests` (único reactivo, ejercita `ConnectivityChanged`), `PrinterOverlayTests` (red de no-regresión del dominio ya validado en dispositivo), `PrinterErrorCatalogTests` (función pura `Describe`), `NavigatingReentrancyTests` (guard de reentrada del interceptor), `GpsCommandHandlerTests` (round-trip de cultura + los dos modos de entrega) y `UrlCommandDispatcherTests` (clasificación y cancelación del puente, Plan 1).
-
----
-
-## 10. Referencias
-
-- Fuente primaria: `Ejemplos_Devices/Integrada/Ejemplo_Maui_Hibrida/` y `Ejemplos_Devices/Integrada/Ejemplo_ws_Blazor/`.
-- Docs de dominio (Canal A/B, por comando): `Ejemplos_Devices/Docs/web-hibrida/` (`maui-hibrido.md`, `lectura-qr.md`, `captura-foto.md`, `llamada.md`, `envio-api.md`).
-- Índices hermanos por dispositivo: 01–07 (GPS, Cámara/Imágenes, Teléfono, QR, Red) · **[Índice 03 — MotorDSL / impresión térmica](03_Impresion-Termica.md)**.
-- READMEs por área: `LibApp/Devices/MotorDSL/README.md`, `LibApp/Devices/Camera/README.md`, `LibApp/Devices/Images/README.md`.
+| Ruta | Contenido |
+|------|-----------|
+| `Integrada/Ejemplo_Maui_Hibrida/LibApp/UrlCommands/` | Contrato, `CommandDelivery`, `UrlPlan`, dispatcher y los 7 handlers |
+| `Integrada/Ejemplo_Maui_Hibrida/ViewModels/MainViewModel.cs` | Las dos fases de `Navigating`, guard de reentrada, comandos nativos |
+| `Integrada/Ejemplo_Maui_Hibrida/Pages/MainPage.xaml` | `WebView`, `RefreshView`, apilado de los cuatro overlays |
+| `Integrada/Ejemplo_Maui_Hibrida/MauiProgram.cs` | Orden de registro de handlers = precedencia; perfiles de impresión; DI completa |
+| `Integrada/Ejemplo_Maui_Hibrida/LibApp/CustomWebView/` | El bridge y su behavior |
+| `Integrada/Ejemplo_Maui_Hibrida/LibApp/Devices/` | Los cinco dominios de dispositivo con servicio, resultado, catálogo y overlay |
+| `Integrada/Ejemplo_Maui_Hibrida.Tests/` | Los invariantes ejecutables, los fakes y el linkeo de fuentes del `.csproj` |
+| `Integrada/Ejemplo_ws_Blazor/Components/Pages/Panel.razor` | El banco de pruebas: una tarjeta por comando |
+| `Integrada/Ejemplo_ws_Blazor/Controllers/` | Los tres endpoints que la app consume |

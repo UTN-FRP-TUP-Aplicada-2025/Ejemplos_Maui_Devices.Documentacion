@@ -3,6 +3,81 @@
 Cambios notables de la documentación de `Ejemplos_Maui_Devices` (`Ejemplos_Maui_Devices.Documentacion`).
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
+## [2026-08-31] — ia-db v1.0: regeneración completa de la base de conocimiento
+
+**Regeneración desde cero**, no una actualización incremental: la `ia-db` se reconstruyó leyendo
+las fuentes del origen y **reemplaza** a la v1.7 (2026-08-05), que queda recuperable en el
+historial de este repositorio. El origen se indexó en el commit **`@285f6fb`** (2026-07-23) con
+árbol de trabajo limpio.
+
+Motivo del reemplazo: v1.7 había indexado dos cambios locales **sin commitear** —el resubdividido
+de regiones de `Panel.razor` y el archivo *untracked* `Ejemplos_Devices.slnLaunch`— que desde
+entonces fueron revertidos. Ninguna de las dos cosas existe hoy en el árbol, así que la base
+describía un estado que ya no era el del repositorio. La regeneración fue decisión del usuario
+frente a la alternativa de una actualización incremental de esos dos puntos.
+
+Alcance: `ia-db/` completo (12 archivos, 1.760 líneas). Se conserva la taxonomía de 11 dominios
+—se deriva de la estructura de carpetas de `Ejemplos_Devices/`— pero **todo el contenido se
+reescribió desde las fuentes**, no se copió de la versión anterior. Ningún índice supera el
+presupuesto de 300–500 líneas del Profile y los enlaces internos se verificaron uno por uno.
+
+### Agregado
+
+Hallazgos verificados contra el código que la base anterior no registraba:
+
+- **`Ejemplo_Maui_Hibrida.Tests` no está en `Ejemplos_Devices.slnx`**: 24 `.csproj` en el árbol,
+  23 referenciados por la solución. Sumado a que ningún workflow la ejecuta, la suite queda fuera
+  del IDE y del CI, pese a que su TFM `net10.0` plano se eligió justamente para poder correrla en
+  CI. Índices [09 §7](ia-db/indexes/09_CI-CD-y-Build.md) y [00 §2](ia-db/indexes/00_MASTER-INDEX.md).
+- **Los volteos EXIF no se aplican** en `ImageDeviceAutoRotate{,Service}`: `canvas.Scale(ex, ey)`
+  se ejecuta *después* de `DrawBitmap`, así que los casos EXIF 2/4/5/7 no espejan el bitmap; los
+  de rotación pura (3/6/8) sí funcionan. Índice [01 §6](ia-db/indexes/01_Camara.md).
+- **El setter de `Domicilio`** de `MainPageViewModel` (GPS) escribe en `_coordenadas`.
+  Índice [04 §8](ia-db/indexes/04_GPS.md).
+- **`LSApplicationQueriesSchemes` no existe** en el `Info.plist` de `Ejemplo_Maui_DirectCall`,
+  aunque el comentario de `PhoneDialerDevice` afirma que «ya está declarado en este proyecto».
+  Índice [06 §4](ia-db/indexes/06_Telefonia.md).
+- **La clave de Google Maps está en claro y versionada** en el `AndroidManifest.xml` del ejemplo
+  de Mapas — lo contrario de lo que prescribe `Ejemplo_Docs_GPS/secret.md`, que en el dominio GPS
+  sí se respeta con `ApiKeys.cs` ignorado por git. Índice [05 §3](ia-db/indexes/05_Mapas.md).
+- **Readmes copiados en el dominio QR**: los de `BSN`, `CS` y `ZN.LectorQR` son idénticos entre sí
+  y los tres nombran `BarcodeScanner.Mobile.Maui`, que es la librería de **BSM**. Para saber qué
+  librería usa cada proyecto hay que leer el `.csproj`. Índice [02 §6](ia-db/indexes/02_QR.md).
+- **Tres rutas del `.slnx` apuntan a archivos inexistentes** (`GPS/Docs_GPS/Readme.md`,
+  `Printer/Ejemplo_Docs_Maps/Borradores/Readme.md`) y la carpeta `/Docs/web-hibrida/` se declara
+  vacía aunque tiene 5 documentos. Índice [09 §7](ia-db/indexes/09_CI-CD-y-Build.md).
+- **Namespace cruzado en el proyecto de selfie**: `MyMediaSelfiePickerPage` declara el namespace
+  del proyecto de normalización, tanto en el `x:Class` como en el code-behind.
+  Índice [01 §7](ia-db/indexes/01_Camara.md).
+- **Divergencias menores** de nombre y estructura: `Ejemplo_Maui_Connectivity` usa el namespace
+  `Ejemplo_Maui_Conexion`; la carpeta `Services/` del proyecto de normalización declara namespace
+  `Utilities`; `MultaIntegratedDsl` vive en `Samples/` con namespace `Templates`.
+
+### Modificado
+
+- **`ia-db/README.md`**: manifiesto reescrito en versión **1.0** con el estado del origen
+  (`@285f6fb`, árbol limpio), la nota de regeneración y los atajos por pregunta frecuente. La
+  invocación queda registrada: `PROMPTs/Indexado/Crear-Indexado.md` →
+  `Tool-Prompts/Indexado-Documentado/Iniciar-Indexado.md`.
+- **Los 11 índices** se reescribieron completos. Cambios de fondo respecto de la v1.7: cada
+  dominio abre explicando *por qué* existe esa colección de proyectos (la progresión didáctica de
+  cámara, la matriz 4×2 de QR, las tres generaciones de impresión) antes de entrar en el detalle;
+  las decisiones de diseño se citan con la razón que el propio código deja escrita; y los avisos
+  ⚠️ separan las trampas de lectura de los defectos verificables.
+- **Índice [00](ia-db/indexes/00_MASTER-INDEX.md)**: nueva sección de los cinco patrones
+  transversales (resultado tipado, overlay de estado, catálogo de errores con código estable,
+  coordinador dueño del overlay, permisos normalizados a cuatro casos) y de las decisiones
+  estructurales que los explican.
+
+### Eliminado
+
+- **El historial de notas de sincronización v1.1–v1.7** del `README.md` de la base. Describían la
+  deriva incremental respecto de commits ya superados; el estado que documentaban está hoy
+  recogido en los índices. Queda accesible en el historial de git de este repositorio.
+- **Las referencias al perfil de arranque local `Ejemplos_Devices.slnLaunch`** (índice 09) y las
+  **anclas de `Panel.razor` recalibradas** para el resubdividido de regiones (índice 08): ambas
+  cosas correspondían a cambios locales que fueron revertidos y no existen en `@285f6fb`.
+
 ## [2026-07-23] — ia-db v1.6: los dos modos de `CommandDelivery` del GPS + namespaces `LibApp.*`
 
 Actualización incremental de la `ia-db`. El refactor del puente que v1.5 indexó desde el árbol
