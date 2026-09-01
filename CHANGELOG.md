@@ -3,6 +3,33 @@
 Cambios notables de la documentación de `Ejemplos_Maui_Devices` (`Ejemplos_Maui_Devices.Documentacion`).
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
+## [2026-09-01] — Tool-prompts de indexado: carpeta `Indexado/` y rutas al nuevo layout
+
+Sólo `PROMPTs/`; la `ia-db` y la documentación no se tocaron. El disparador es la reorganización
+del workspace: los repos pasaron a colgar de `/APLICADA/` y los tool-prompts federados de
+`/IA/PROMPTs/IA.Prompts/`, así que las rutas escritas en los prompts ya no resolvían.
+
+### Modificado
+
+- **`PROMPTs/01-Crear-Indexado/` → `PROMPTs/Indexado/`**: se cae el prefijo numérico, que sugería
+  un orden entre carpetas hermanas que no existe, y el nombre pasa a describir el tema —como
+  `Documentaciones/`, `Implementaciones/` y `Guias/`— en vez de una sola de las dos acciones que
+  la carpeta contiene.
+- **`Indexado/Crear-Indexado.md` e `Indexado/Actualizar-Indexado.md`**: ambos ganan el encabezado
+  de invocación (título, ruta de invocación y *overview*) que ya usan el resto de los tool-prompts
+  del repositorio, de modo que se los pueda invocar por ruta sin leer el cuerpo.
+
+### Corregido
+
+- **`Crear-Indexado.md` apuntaba a otro repositorio**: indexaba `/GDA_/GDA.APP` y dejaba la salida
+  en `/GDA_/GDA.APP.Documentacion/ia-db`. Era una copia sin adaptar; ahora indexa
+  `/APLICADA/Ejemplos_Maui_Devices` contra `/APLICADA/Ejemplos_Maui_Devices.Documentacion/ia-db`.
+- **Rutas de los tool-prompts federados**: `/IA/IA.Prompts/Tool-Prompts/…` →
+  `/IA/PROMPTs/IA.Prompts/Tool-Prompts/…`, y `Actualizar-Indexado.md` pasa de la carpeta
+  `Tool-Prompts/Indexado/` a `Tool-Prompts/Indexado-Documentado/`, donde vive hoy junto con
+  `Iniciar-Indexado.md`.
+- **Ruta de la ia-db federada** en `Actualizar-Indexado.md`: `/Ejemplos_Maui/…` → `/APLICADA/…`.
+
 ## [2026-08-31] — ia-db v1.0: regeneración completa de la base de conocimiento
 
 **Regeneración desde cero**, no una actualización incremental: la `ia-db` se reconstruyó leyendo
