@@ -3,6 +3,34 @@
 Cambios notables de la documentación de `Ejemplos_Maui_Devices` (`Ejemplos_Maui_Devices.Documentacion`).
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
+## [2026-10-28] — ia-db v1.0: segunda regeneración completa
+
+**Regeneración desde cero** por decisión del usuario, aunque el código no había cambiado desde la
+base anterior (2026-08-31, `14b22fb`), que queda recuperable en el historial. Origen indexado:
+**`@cc80ce1`** con árbol limpio, que es `285f6fb` más dos commits de esta misma sesión que sólo
+corrigen mayúsculas en rutas (4 en `Ejemplos_Devices.slnx` y 2 enlaces de
+`Docs/web-hibrida/maui-hibrido.md`).
+
+Se mantiene la taxonomía de 11 índices, porque se deriva de `Ejemplos_Devices/`, pero todo el
+contenido se reescribió: un escritor por dominio leyó las fuentes sin consultar la base anterior, y
+un verificador adversarial por índice contrastó cada cita `ruta:línea` contra el código y corrigió
+en el lugar. Ningún índice supera las 500 líneas del Profile, y los enlaces y las referencias a
+secciones entre índices quedaron verificados.
+
+### Agregado
+
+- Inventario de los **25 `.csproj`**, incluido el artefacto documental `Thermalprintermaui` (net8,
+  generado por IA, fuera de la solución).
+- El workflow huérfano `cd-ios-qr.Ejemplo_LectorQR_Dialog.yml`, que apunta a un proyecto inexistente.
+- Las rutas rotas de la `.slnx`: siguen rotas `GPS/Docs_GPS/Readme.md` y
+  `Printer/Ejemplo_Docs_Maps/Borradores/Readme.md`.
+- Trampas nuevas verificadas: `ZN.*` usa CameraMaui y no ZXing.Net.Maui; en `Ejemplo_ThermalPrinter`
+  el QR y el código de barras se imprimen como texto y «Grande (2x)» sale más chico; la simulación
+  del CI usa `continue-on-error` y el job queda verde aunque la app no arranque; el `push` de la
+  híbrida no se dispara por cambios en Blazor, en los tests ni en los flujos Maestro; el JS inyectado
+  por Camera/Selfie/SendApi interpola entre comillas simples; `CHANGELOG.md` e `Invariantes.cs` citan
+  `Ejemplos_Maui_Devices.Documentos`.
+
 ## [2026-09-01] — Tool-prompts de indexado: carpeta `Indexado/` y rutas al nuevo layout
 
 Sólo `PROMPTs/`; la `ia-db` y la documentación no se tocaron. El disparador es la reorganización
