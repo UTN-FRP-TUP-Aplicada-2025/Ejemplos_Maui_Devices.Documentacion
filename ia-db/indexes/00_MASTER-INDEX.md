@@ -1,177 +1,100 @@
-# 00 — Índice maestro
+# 00 — Índice maestro de `Ejemplos_Maui_Devices`
 
-> **Propósito:** visión general del repositorio, stack, catálogo de proyectos y las decisiones que se repiten en todos los dominios.
-> **Fuente primaria:** `Ejemplos_Maui_Devices/` completo (24 proyectos, 18 workflows, ~60 documentos).
-> **Entrada de la base:** [README.md](../README.md).
+> **Propósito:** visión general del repositorio de código: qué es, con qué stack, qué proyectos hay, qué patrones se repiten y dónde está cada tema. Es el índice a leer primero; el detalle de cada dominio vive en los índices `01`–`10`.
+> **Fuentes primarias:** `README.md`, `CHANGELOG.md`, `Ejemplos_Devices/Ejemplos_Devices.slnx`, los `*.csproj` de `Ejemplos_Devices/`, `.github/workflows/`. Origen indexado: HEAD local `cc80ce1` (ver manifiesto en [`../README.md`](../README.md)).
 
 ---
 
 ## 1. Qué es
 
-**`Ejemplos_Maui_Devices`** es un repositorio **didáctico** de la cátedra: una colección de ejemplos .NET MAUI, cada uno mínimo y autocontenido, que muestran cómo usar una capacidad del dispositivo desde una app móvil — cámara, QR, impresión térmica Bluetooth, GPS, mapas, teléfono y red — y una app final que los **integra todos** dentro de un `WebView`.
-
-No es un producto ni una librería: es material de estudio. Eso explica sus rasgos más constantes:
-
-- **Cada ejemplo es copiable por separado.** Nada de proyecto compartido: el código se duplica a propósito entre ejemplos (`AsyncRelayCommand`, `ImageDeviceAutoRotate`, los overlays) para que uno se pueda llevar sin arrastrar el resto.
-- **Se conserva el rastro del error.** Los caminos anteriores quedan comentados junto al nuevo, y los documentos explican el defecto que motivó cada cambio.
-- **La variación es la lección.** Varios dominios son matrices: 5 formas de capturar una foto, 4 librerías de QR × 2 modos de uso, 3 generaciones de impresión.
-
-## 2. Datos clave
-
 | | |
 |---|---|
-| **Repositorio** | `APLICADA/Ejemplos_Maui_Devices` (git) |
-| **Documentación** | `APLICADA/Ejemplos_Maui_Devices.Documentacion` (repositorio aparte — acá vive esta ia-db) |
-| **Lenguaje / stack** | C# · .NET 10 · .NET MAUI · XAML · Blazor Server |
-| **TFM** | `net10.0-android` (+ `net10.0-ios` solo al compilar en macOS); `net10.0-windows10.0.19041.0` solo en Mapas |
-| **Plataformas mínimas** | Android API 25 (21 en `Ejemplo_Maui_DirectCall`) · iOS 15.0 |
-| **Proyectos** | 24 (22 apps MAUI, 1 web Blazor, 1 de tests), más 8 carpetas `Ejemplo_Docs_*` sin proyecto |
-| **Solución** | `Ejemplos_Devices/Ejemplos_Devices.slnx` (formato XML) — **23 proyectos: el de tests no está incluido** |
-| **CI** | 18 workflows de GitHub Actions, todos build + simulador **iOS** en `macos-15` |
-| **Dispositivo de referencia** | Motorola Moto g42 (Android) · simulador iPhone 17 Pro Max (CI) |
-| **Backend desplegado** | `https://aplicada.somee.com` |
+| Naturaleza | Colección **didáctica** de ejemplos .NET MAUI de acceso a dispositivos, uno por técnica, más una app híbrida que los integra (`README.md:2-24`) |
+| Dominios | Cámara, QR, impresión térmica Bluetooth, GPS, mapas, telefonía, red, app híbrida integrada (carpetas de `Ejemplos_Devices/`; `Ejemplos_Devices.slnx:36-188`) |
+| Estado de la prosa del código | El `README.md` raíz marca casi todos los dominios «En construcción ...» (`README.md:12-24`); la prosa completa está en el repo de documentación → [10](10_Documentacion-Transversal.md) |
+| Bitácora del código | `CHANGELOG.md` (Keep a Changelog; última entrada 2026-07-23, `CHANGELOG.md:1-6`) |
 
-## 3. Arquitectura del repositorio
+## 2. Stack
+
+| Capa | Valor | Cita |
+|---|---|---|
+| Lenguaje / UI | C# · .NET MAUI · XAML | `*.csproj` (`Ejemplos_Devices/GPS/Ejemplo_Maui_GPS/Ejemplo_Maui_GPS.csproj:4-5`) |
+| TFM apps MAUI | `net10.0-android`; `+net10.0-ios` sólo al compilar en macOS | `Ejemplos_Devices/GPS/Ejemplo_Maui_GPS/Ejemplo_Maui_GPS.csproj:4-5`, `Ejemplos_Devices/Integrada/Ejemplo_Maui_Hibrida/Ejemplo_Maui_Hibrida.csproj:4-5` |
+| Plataformas mínimas | iOS 15.0, Android 25 (DirectCall: 21 → [06](06_Telefonia.md)) | `Ejemplos_Devices/GPS/Ejemplo_Maui_GPS/Ejemplo_Maui_GPS.csproj:25-26` |
+| Backend | Blazor Server `net10.0` (`Ejemplo_ws_Blazor`) | `Ejemplos_Devices/Integrada/Ejemplo_ws_Blazor/Ejemplo_ws_Blazor.csproj:4` |
+| Tests | xUnit `net10.0` (`Ejemplo_Maui_Hibrida.Tests`) | `Ejemplos_Devices/Integrada/Ejemplo_Maui_Hibrida.Tests/Ejemplo_Maui_Hibrida.Tests.csproj:9` |
+| SDK fijado | Ninguno: no hay `global.json` ni `Directory.Build.*`; `$(MauiVersion)` lo pone el workload | → [09 §1](09_CI-CD-y-Build.md) |
+| CI | GitHub Actions, `macos-15`, Xcode 26.0, .NET SDK 10.0.300 | `.github/workflows/cd-ios-gps.Ejemplo_GPS.yml:23-47` → [09](09_CI-CD-y-Build.md) |
+
+## 3. Catálogo de proyectos
+
+25 `*.csproj` versionados: 24 proyectos reales + 1 copia histórica en prosa (`Ejemplos_Devices/Printer/Ejemplo_Docs_Printer/Prompts_Generacion_Apk_ejemplo/ficheros_claude.ia/Thermalprintermaui.csproj`, no se compila). 23 están en la solución.
+
+| Dominio | Proyecto | En `.slnx` | Índice |
+|---|---|---|---|
+| Cámara | `Ejemplo_Photo_MediaPicker` · `_MiMediaPicker_Callback` · `_MiMediaPicker_Callback_Normalizacion` · `_MiMediaPicker_Task` · `_MiMediaSelfie_Callback_Normalizacion` | `:37`, `:40`, `:43`, `:46`, `:49` | [01](01_Camara.md) |
+| QR | `BSM` · `BSN` · `CS` · `ZN` `.LectorQR`, cada uno con `_Dialog` | `:150-183` | [02](02_QR.md) |
+| Impresión | `Ejemplo_MotorDSL` · `Ejemplo_MotorDSL_Dialog` · `Ejemplo_ThermalPrinter` | `:90`, `:93`, `:96` | [03](03_Impresion-Termica.md) |
+| GPS | `Ejemplo_Maui_GPS` | `:57` | [04](04_GPS.md) |
+| Mapas | `Ejemplo_Maui_Mapas` | `:74` | [05](05_Mapas.md) |
+| Telefonía | `Ejemplo_Maui_Dialer` · `Ejemplo_Maui_DirectCall` | `:82`, `:85` | [06](06_Telefonia.md) |
+| Red | `Ejemplo_Maui_Connectivity` | `:188` | [07](07_Red-Conectividad.md) |
+| Integrada | `Ejemplo_Maui_Hibrida` · `Ejemplo_ws_Blazor` · `Ejemplo_Maui_Hibrida.Tests` | `:65`, `:68`; Tests **no** | [08](08_App-Hibrida-Integrada.md) |
+
+(Líneas de `Ejemplos_Devices/Ejemplos_Devices.slnx`.) Las carpetas `Ejemplo_Docs_*` de cada dominio son prosa/material, no proyectos.
+
+## 4. Mapa del árbol
 
 ```
 Ejemplos_Maui_Devices/
-├── README.md                 Portada con enlace a cada dominio
-├── CHANGELOG.md              9 entradas, 2026-07-13 → 2026-07-23
-├── .gitignore                VS estándar + **/Services/ApiKeys.cs
-├── vs.bat                    una línea: code .
-├── .github/workflows/        18 pipelines CD iOS + 2 documentos  → índice 09
-├── Utilities/                simular.sh, simular_ui.sh, end2end/  → índice 09
+├── README.md · CHANGELOG.md · .gitignore · vs.bat
+├── .github/workflows/        18 cd-ios-*.yml + Readme.md + Pipelinea-Version.md + Analisis/   → 09
+├── Utilities/                simular.sh, simular_ui.sh, end2end/ (Maestro), download_sectigo.ps1 → 09
 └── Ejemplos_Devices/
     ├── Ejemplos_Devices.slnx
-    ├── Camera/     5 proyectos + Ejemplo_Docs_Photo               → índice 01
-    ├── QR/         8 proyectos + Ejemplo_Docs_QR                  → índice 02
-    ├── Printer/    3 proyectos + Ejemplo_Docs_Printer             → índice 03
-    ├── GPS/        1 proyecto  + Ejemplo_Docs_GPS                 → índice 04
-    ├── Maps/       1 proyecto  + Ejemplo_Docs_Maps                → índice 05
-    ├── Phone/      2 proyectos                                    → índice 06
-    ├── Red/        1 proyecto  + Ejemplo_Docs_Red                 → índice 07
-    ├── Integrada/  3 proyectos + Ejemplo_Docs_Integrada           → índice 08
-    ├── Docs/       18 documentos transversales                    → índice 10
-    └── scripts/    3 .bat de arranque para Windows
+    ├── Camera/ QR/ Printer/ GPS/ Maps/ Phone/ Red/   un ejemplo por técnica         → 01–07
+    ├── Integrada/            app híbrida + backend Blazor + tests                   → 08
+    ├── Docs/                 Certificados-SSL, otros, qr-nuget, web-hibrida         → 10
+    └── scripts/              .bat de arranque Windows                                → 09
 ```
 
-## 4. Catálogo de proyectos
+## 5. Patrones transversales
 
-| Dominio | Proyecto | `ApplicationId` | CI | Índice |
-|---------|----------|-----------------|:--:|--------|
-| Cámara | `Ejemplo_Photo_MediaPicker` | `com.ejemplos.devices.mediapicker` | — | [01](01_Camara.md) |
-| | `Ejemplo_Photo_MiMediaPicker_Task` | `…mimediapicker.task` | ✅ | |
-| | `Ejemplo_Photo_MiMediaPicker_Callback` | `com.ejemplos.photo.mimediapicker.callback` | ✅ | |
-| | `Ejemplo_Photo_MiMediaPicker_Callback_Normalizacion` | `…imagen.callback.normalizacion` | ✅ | |
-| | `Ejemplo_Photo_MiMediaSelfie_Callback_Normalizacion` | `…normalizacion.miselfie` | ✅ | |
-| QR | `BSM.LectorQR{,_Dialog}` | `…qr.barcodescanner_mobile_maui.{simple,dialog}` | ✅ | [02](02_QR.md) |
-| | `BSN.LectorQR{,_Dialog}` | `…qr.barcodescanner_native_maui.{simple,dialog}` | ✅ | |
-| | `CS.LectorQR{,_Dialog}` | `…qr.camerascanner{_maui.simple,.maui.dialog}` | ✅ | |
-| | `ZN.LectorQR{,_Dialog}` | `…qr.zxing_net_maui.{simple,dialog}` | ✅ | |
-| Impresión | `Ejemplo_ThermalPrinter` | `…devices.ThermalPrinter` | — | [03](03_Impresion-Termica.md) |
-| | `Ejemplo_MotorDSL` | `…devices.MotorDSL` | ✅ | |
-| | `Ejemplo_MotorDSL_Dialog` | `…devices.MotorDSL.Dialog` | — | |
-| GPS | `Ejemplo_Maui_GPS` | `com.ejemplos.devices.gps` | ✅ | [04](04_GPS.md) |
-| Mapas | `Ejemplo_Maui_Mapas` | `com.ejemplos.devices.mapas` | — | [05](05_Mapas.md) |
-| Teléfono | `Ejemplo_Maui_Dialer` | `com.ejemplos.phone.dialer` | ✅ | [06](06_Telefonia.md) |
-| | `Ejemplo_Maui_DirectCall` | `com.ejemplos.phone.directcall` | ✅ | |
-| Red | `Ejemplo_Maui_Connectivity` | `com.ejemplos.red.connectivity` | — | [07](07_Red-Conectividad.md) |
-| Integrada | `Ejemplo_Maui_Hibrida` | `…devices.integrada.hibrida` | ✅ | [08](08_App-Hibrida-Integrada.md) |
-| | `Ejemplo_ws_Blazor` | — (web) | — | |
-| | `Ejemplo_Maui_Hibrida.Tests` | — (xUnit, `net10.0`) | — | |
+| Patrón | Dónde se ve | Índice |
+|---|---|---|
+| Servicio → resultado tipado → overlay MVVM | GPS: `GpsService` → `GpsResult` → `GpsCoordinator.Aplicar` (`Ejemplos_Devices/GPS/Ejemplo_Maui_GPS/Services/GpsService.cs:15-69`, `Ejemplos_Devices/GPS/Ejemplo_Maui_GPS/Services/GpsCoordinator.cs:56-70`); DirectCall: `CallResult`/`CallCoordinator` (`Ejemplos_Devices/Phone/Ejemplo_Maui_DirectCall/Services/CallResult.cs:6-28`); impresión: `PrinterService` → `PrintResult` → `PrinterOverlayViewModel` | [04](04_GPS.md) · [06](06_Telefonia.md) · [03](03_Impresion-Termica.md) · ADR 0002 |
+| Dos generaciones de overlay | `ViewModelBase` + `AsyncRelayCommand` propios (GPS, DirectCall) vs base genérica de tres estados sobre CommunityToolkit (`Ejemplos_Devices/Printer/Ejemplo_MotorDSL_Dialog/ViewModels/StatusOverlayViewModel.cs:11-77`) | [03 §7](03_Impresion-Termica.md) · [04 §6](04_GPS.md) |
+| Permiso normalizado en 4 valores | `Granted`/`DeniedCanRetry`/`Denied`/`Restricted` (`Ejemplos_Devices/GPS/Ejemplo_Maui_GPS/Services/LocationPermissionResult.cs:5-11`, `Ejemplos_Devices/Printer/Ejemplo_MotorDSL_Dialog/Models/BluetoothPermissionResult.cs:5-11`) | [04 §3](04_GPS.md) · [03 §5](03_Impresion-Termica.md) |
+| Retorno de una página por `TaskCompletionSource` | QR `_Dialog` (`Ejemplos_Devices/QR/BSM.LectorQR_Dialog/Pages/QRLectorPage.xaml.cs:12`), cámara ej. 3 | [02 §5](02_QR.md) · [01 §3](01_Camara.md) |
+| Registro en `MauiProgram` | QR/Mapas: sólo el handler de la librería (`.UseBarcodeScanning()`, `.UseMauiMaps()`); GPS/impresión: extensiones `AddServices`/`AddPrintServices` | [02 §3](02_QR.md) · [05 §2](05_Mapas.md) |
+| Catálogo de errores con código estable | `PRN-*`, `DisplayMessage` = mensaje + código (`Ejemplos_Devices/Printer/Ejemplo_MotorDSL_Dialog/Models/PrinterErrorCatalog.cs:9-39`) | [03 §6](03_Impresion-Termica.md) |
+| Puente WebView por comandos URL | intercepción de la navegación en la híbrida; clasificación separada de ejecución desde `0ef370b` | [08 §3](08_App-Hibrida-Integrada.md) · ADR 0003 |
+| Secretos fuera del repo | `Services/ApiKeys.cs` generado desde plantilla, ignorado por `.gitignore:421`; en CI desde `secrets.GOOGLE_MAPS_API_KEY` | [04 §5](04_GPS.md) · [09 §4](09_CI-CD-y-Build.md) · ADR 0007 |
 
-## 5. Stack por dominio
+## 6. Decisiones (ADR) — dónde
 
-| Necesidad | Paquete | Dónde |
-|-----------|---------|-------|
-| Cámara con UI propia | `CommunityToolkit.Maui.Camera` 6.0.0 / 6.1.0 | Cámara, híbrida |
-| Normalización de imagen | `MetadataExtractor` 2.9.0 + `SkiaSharp` 3.119.x | Cámara (2), híbrida |
-| Escaneo QR | `BarcodeScanner.Mobile.Maui` 9.0.1 · `BarcodeScanning.Native.Maui` 3.0.4 · `CameraScanner.Maui` 1.8.31 · `CameraMaui` 1.4.5 | QR (uno por par), híbrida (`BSN`) |
-| Impresión ESC/POS a mano | `ESCPOS_NET` 2.2.1 | `Ejemplo_ThermalPrinter` |
-| Impresión por documento | `MotorDsl.*` (7 paquetes) 1.0.12 / **1.0.13** | `Ejemplo_MotorDSL{,_Dialog}`, híbrida |
-| Mapas | `Microsoft.Maui.Controls.Maps` 10.0.40 | Mapas |
-| MVVM | `CommunityToolkit.Mvvm` 8.4.2 | Híbrida, `MotorDSL_Dialog`, tests |
-| Toolkit (behaviors, converters) | `CommunityToolkit.Maui{,.Core}` 14.x | Híbrida, `MotorDSL_Dialog` |
-| Backend | `Microsoft.AspNetCore.OpenApi` 10.0.8 + `Scalar.AspNetCore` 2.14.14 | `Ejemplo_ws_Blazor` |
-| Tests | `xunit` 2.9.2 + `Microsoft.NET.Test.Sdk` 17.11.1 | `Ejemplo_Maui_Hibrida.Tests` |
+Los 9 ADR viven en el repo de documentación: [`04-decisions/`](../../Ejemplos_Maui_Devices-docs/docs/04-decisions/). Tabla con estado y decisión en una línea → [10 §2](10_Documentacion-Transversal.md).
 
-Los ejemplos simples usan `Microsoft.Maui.Controls` con `$(MauiVersion)`; los que necesitan una versión concreta la fijan (10.0.30 … 10.0.80).
+## 7. Avisos de mayor alcance (⚠️)
 
-## 6. Los patrones que se repiten
+Detalle y citas en cada índice; acá sólo los que cruzan dominios.
 
-Cinco decisiones aparecen, con variaciones, en casi todos los dominios. Conocerlas es entender el repositorio.
+- ⚠️ **Clave de Google Maps en texto plano** en el `AndroidManifest.xml` de `Ejemplo_Maui_Mapas` (no se copia acá) → [05 §5](05_Mapas.md); ya registrada en el GAP-REPORT (S-01).
+- ⚠️ **`.slnx` con rutas muertas**: `GPS/Docs_GPS/Readme.md` (`Ejemplos_Devices.slnx:62`) y `Printer/Ejemplo_Docs_Maps/Borradores/Readme.md` (`:111`); `/Docs/web-hibrida/` vacía (`:34`) → [09 §9](09_CI-CD-y-Build.md).
+- ⚠️ **Workflow huérfano** `cd-ios-qr.Ejemplo_LectorQR_Dialog.yml` apunta a un proyecto inexistente → [09 §2](09_CI-CD-y-Build.md).
+- ⚠️ **Los tests de la híbrida no corren en CI** ni están en la solución → [08 §9](08_App-Hibrida-Integrada.md) · [09](09_CI-CD-y-Build.md).
+- ⚠️ **Prosa anterior a `0ef370b`**: bridge-contract, pieza integrada y `Docs/web-hibrida/maui-hibrido.md` describen el despacho viejo del puente; manda el código → [08 §10](08_App-Hibrida-Integrada.md).
+- ⚠️ **Nombre ≠ librería en QR**: `ZN.LectorQR` usa `CameraMaui`, no ZXing.Net.Maui → [02 §2](02_QR.md).
+- ⚠️ **Versiones no unificadas**: `Microsoft.Maui.Controls` va de `$(MauiVersion)` a fijos 10.0.30–10.0.80 según el proyecto; `MotorDsl.*` 1.0.12 vs 1.0.13 → [01](01_Camara.md) · [02](02_QR.md) · [03 §1](03_Impresion-Termica.md).
 
-### 6.1 Resultado tipado en vez de excepciones
+## 8. Fuentes
 
-Un `abstract record` con un `sealed record` por situación que la UI debe distinguir. El servicio **nunca lanza**; el ViewModel hace `switch` sin `try/catch`.
-
-`GpsResult` (8 casos) · `CallResult` (7) · `NetworkResult` (6) · `PrintResult` + `DiscoverResult` + `DocumentResult` · `ApiCallResult`.
-
-> Regla que el código deja escrita: **cada variante debe ser alcanzable**. Modelar un caso y no producirlo nunca es «el defecto más caro del patrón» — `BluetoothOff` existió todo un PoC sin que nadie la construyera.
-
-### 6.2 Overlay de estado sobre el contenido
-
-Una máquina de tres estados (`None` / `Busy` / `Error`) con capa de espera, capa de error y **botonera dinámica** generada desde una colección de `OverlayAction(Text, Command, Style)`. Vive en `StatusOverlayViewModel` + `StatusOverlayView`.
-
-Variante temprana en `Ejemplo_Maui_GPS` y `Ejemplo_Maui_DirectCall` (dos `bool` y callbacks por constructor); versión madura en `Ejemplo_MotorDSL_Dialog` y en los cuatro overlays de la híbrida.
-
-### 6.3 Catálogo de errores con código estable
-
-`{Dominio}Failure(Code, Title, UserMessage, TechnicalMessage)` + un `{Dominio}ErrorCatalog` estático. Prefijos: **`GPS-*`**, **`TEL-*`**, **`PRN-*`**.
-
-Dos reglas declaradas: los códigos **son contrato con soporte** (se agregan, no se renombran) y hay **un código por acción distinta del usuario**, no por causa técnica distinta. `DisplayMessage` pone el código separado y al final, para que se pueda dictar a soporte sin competir con la acción.
-
-### 6.4 Coordinador dueño del overlay y de la cancelación
-
-Un singleton (`GpsCoordinator`, `CallCoordinator`, o el propio `*OverlayViewModel` en la híbrida) que es **el punto único de entrada** desde cualquier parte de la app: página, comando, deep link o navegación por URL. Es dueño del `CancellationTokenSource` y hace todo cambio de UI por `MainThread`/`IUiDispatcher`.
-
-### 6.5 Permisos normalizados a cuatro casos
-
-`Granted` / `DeniedCanRetry` / `Denied` / `Restricted`. `DeniedCanRetry` sale de `ShouldShowRationale`, que **solo existe en Android**; en iOS siempre se cae en `Denied`, que fuerza el camino de ajustes. Aparece en `LocationPermissionResult`, `CallPermissionResult` y `BluetoothPermissionResult`.
-
-## 7. La app integrada como destino
-
-Los dominios aislados son los ensayos; `Ejemplo_Maui_Hibrida` es la obra. Cada dominio llega ahí con una versión endurecida:
-
-| Dominio | Qué aporta a la híbrida |
-|---------|------------------------|
-| Cámara | `MyMediaPickerPage` y `MyMediaSelfiePickerPage` completas, más la normalización EXIF |
-| QR | `QRLectorPage` con `BarcodeScanning.Native.Maui`, la recomendación 🥇 del estudio de NuGets |
-| Impresión | El overlay con catálogo `PRN-*`, más el caso «documento por red» que el PoC no tenía |
-| GPS | El servicio y el overlay, ahora con catálogo `GPS-*` y `IUiDispatcher` |
-| Teléfono | El servicio de llamada directa, con catálogo `TEL-*` |
-| Red | `NetworkService` con **sonda activa** de internet real (el ejemplo aislado es un esqueleto) |
-
-Lo que la híbrida agrega y no existe en ningún ejemplo aislado: el **puente de comandos por URL** (`LibApp/UrlCommands/`), el **bridge del WebView** y la **suite de tests con invariantes ejecutables**.
-
-## 8. Decisiones estructurales
-
-| Decisión | Consecuencia |
-|----------|--------------|
-| **Cada ejemplo autocontenido** (ADR-0001) | No hay proyecto de librería compartida; el `.csproj` de tests **linkea fuentes** en vez de referenciar el proyecto |
-| **Duplicación deliberada de tipos con la misma forma** | `GpsFailure`/`CallFailure`/`PrintFailure` no se unificaron: unificarlos obligaba a reabrir el dominio ya validado en dispositivo. «Lo que armoniza el patrón son los invariantes, no un tipo compartido» |
-| **Los `MotorDsl.*` se consumen como NuGet, no como `ProjectReference`** | El ejemplo valida los paquetes publicados |
-| **Los ViewModels no tienen ninguna directiva `#if`** | Todo el código de plataforma vive detrás de `I*Service`, y por eso la suite corre en `net10.0` plano sin emulador |
-| **CI solo para simulador iOS** | Android, la plataforma principal de casi todos los ejemplos, no se compila en CI |
-
-## 9. Números del repositorio
-
-| | |
+| Ruta | Contiene |
 |---|---|
-| Proyectos (`.csproj`) | 24 · en la solución: 23 |
-| Archivos `.cs` (sin `bin`/`obj`) | 322 |
-| Archivos `.xaml` | 129 · `.razor`: 12 |
-| Documentos `.md` | 62 |
-| Workflows de CI | 18 |
-| Tests | 67 `[Fact]` + 11 `[Theory]` (solo en la híbrida) |
-| Entradas del CHANGELOG | 9 (2026-07-13 → 2026-07-23) |
+| `README.md` | Portada con enlaces a los `Ejemplo_Docs_*` |
+| `CHANGELOG.md` | Bitácora de cambios del código |
+| `Ejemplos_Devices/Ejemplos_Devices.slnx` | Solución: carpetas y 23 proyectos |
+| `Ejemplos_Devices/**/*.csproj` | TFM, versiones mínimas, paquetes |
+| `.github/workflows/` | Pipelines → [09](09_CI-CD-y-Build.md) |
 
-## 10. Dónde mirar primero
-
-| Si necesitás… | Leé |
-|---------------|-----|
-| Entender el repositorio como sistema | este índice |
-| Trabajar sobre un dispositivo concreto | el índice del dominio (01–07) |
-| Tocar la app final | [08](08_App-Hibrida-Integrada.md), y el índice del dispositivo involucrado |
-| Cambiar el pipeline o la simulación | [09](09_CI-CD-y-Build.md) |
-| Encontrar el documento que explica un porqué | [10](10_Documentacion-Transversal.md) |
+**Prosa relacionada:** [README del conjunto documental](../../Ejemplos_Maui_Devices-docs/README.md) · [system-map](../../Ejemplos_Maui_Devices-docs/docs/00-overview/system-map.md) · [vision](../../Ejemplos_Maui_Devices-docs/docs/00-overview/vision.md) · [GLOSSARY](../../Ejemplos_Maui_Devices-docs/GLOSSARY.md).

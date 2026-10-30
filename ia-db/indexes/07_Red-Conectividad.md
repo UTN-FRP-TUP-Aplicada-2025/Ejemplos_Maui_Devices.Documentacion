@@ -1,55 +1,65 @@
 # 07 — Red y conectividad
 
-> **Propósito:** la API `Connectivity` de MAUI Essentials — estados de acceso, perfiles activos y el evento de cambio.
-> **Fuente primaria:** `Ejemplos_Devices/Red/` (1 proyecto + 1 documento).
-> **Índices relacionados:** [00_MASTER-INDEX](00_MASTER-INDEX.md) · [08_App-Hibrida-Integrada](08_App-Hibrida-Integrada.md) (ahí sí hay un `NetworkService` completo con overlay).
+> **Propósito:** qué hay (y qué no) en el ejemplo de conectividad: API `Connectivity`, estados de `NetworkAccess`, perfiles de conexión y detección de cambios.
+> **Fuentes primarias:** `Ejemplos_Devices/Red/Ejemplo_Maui_Connectivity/`, `Ejemplos_Devices/Red/Ejemplo_Docs_Red/Readme.md`, `Ejemplos_Devices/Ejemplos_Devices.slnx:187-194`. HEAD indexado `cc80ce1`.
+> La implementación completa (servicio + overlay «Sin conexión») vive en la app híbrida (`Integrada/Ejemplo_Maui_Hibrida/LibApp/Devices/Networks/`): ver [08_App-Hibrida-Integrada](08_App-Hibrida-Integrada.md).
 
 ---
 
-## 1. Estado del dominio
+## 1. Inventario
 
-`Ejemplo_Maui_Connectivity` · `com.ejemplos.red.connectivity` · sin paquetes fuera de MAUI.
+| Proyecto | ApplicationId | TFM / mínimos | NuGet | En `.slnx` |
+|---|---|---|---|---|
+| `Ejemplo_Maui_Connectivity` | `com.ejemplos.red.connectivity` (`Ejemplo_Maui_Connectivity.csproj:16`) | `net10.0-android` (+`net10.0-ios` en macOS) `:4-5`; iOS 15.0 / Android 25.0 `:23-24` | `Microsoft.Maui.Controls` `$(MauiVersion)`, `Microsoft.Extensions.Logging.Debug` 10.0.2 (`:80-81`) | sí (`Ejemplos_Devices.slnx:188`) |
+| `Ejemplo_Docs_Red` (sólo prosa) | — | — | — | sí, como archivo (`.slnx:192-194`) |
 
-**Es un esqueleto**: la pantalla está vacía (`Pages/MainPage.xaml` tiene un `<ScrollView>` sin contenido y el code-behind solo llama a `InitializeComponent`). El valor del dominio está en el documento y en la clase de ejemplo, no en una app funcionando. El `README.md` raíz lo marca como «En construcción …».
+## 2. API usada
 
-La versión operativa de este tema está en la app híbrida, con `NetworkService`, `NetworkResult` y overlay ([índice 08](08_App-Hibrida-Integrada.md)).
+| Elemento | Uso | Cita |
+|---|---|---|
+| `Connectivity.ConnectivityChanged` | suscripción en el constructor | `Utilities/ConnectivityTest.cs:9-10` |
+| desuscripción | en el **finalizador** `~ConnectivityTest()` | `Utilities/ConnectivityTest.cs:12-13` |
+| `e.NetworkAccess` | `ConstrainedInternet` → «limitado»; distinto de `Internet` → «perdido» | `Utilities/ConnectivityTest.cs:17-21` |
+| `e.ConnectionProfiles` | recorre `Bluetooth`, `Cellular`, `Ethernet`, `WiFi` | `Utilities/ConnectivityTest.cs:26-44` |
+| Consulta puntual `Connectivity.Current.NetworkAccess` | sólo en la prosa | `Ejemplo_Docs_Red/Readme.md:7-12` |
 
-## 2. El modelo de `Connectivity`
+Salida por `Console.WriteLine`, sin UI.
 
-Documentado en `Red/Ejemplo_Docs_Red/Readme.md`. Se consulta con:
+## 3. Estados de `NetworkAccess` (según la prosa)
 
-```csharp
-NetworkAccess accessType = Connectivity.Current.NetworkAccess;
-```
+| Valor | Significado | Cita |
+|---|---|---|
+| `Internet` | acceso local e Internet | `Ejemplo_Docs_Red/Readme.md:15` |
+| `ConstrainedInternet` | portal cautivo / acceso limitado | `:16` |
+| `Local` | sólo red local | `:17` |
+| `None` | sin conectividad | `:18` |
+| `Unknown` | no determinable | `:19` |
 
-| Valor de `NetworkAccess` | Significado |
-|--------------------------|-------------|
-| `Internet` | Acceso local **e** Internet |
-| `ConstrainedInternet` | Acceso limitado: hay un **portal cautivo**; tras autenticarse en él se concede Internet |
-| `Local` | Solo red local |
-| `None` | Sin conectividad |
-| `Unknown` | No se puede determinar |
+## 4. Permisos
 
-Y los perfiles activos (`ConnectionProfile`): `Bluetooth`, `Cellular`, `Ethernet`, `WiFi`.
+| Plataforma | Declaración | Cita |
+|---|---|---|
+| Android | `ACCESS_NETWORK_STATE`, `INTERNET` | `Platforms/Android/AndroidManifest.xml:10-11` |
+| iOS | ninguna clave específica (no hace falta permiso para `Connectivity`) | `Platforms/iOS/Info.plist` |
 
-## 3. `ConnectivityTest` — el ejemplo del evento
+## 5. Avisos (⚠️)
 
-`Utilities/ConnectivityTest.cs` (49 l.) es **la clase de la documentación de Microsoft transcrita al proyecto**, idéntica al bloque de código que reproduce `Ejemplo_Docs_Red/Readme.md`. Muestra:
+- ⚠️ `ConnectivityTest` no se instancia en ningún lado (sólo aparece en su archivo y en el Readme); la `MainPage` tiene un `ScrollView` vacío (`Pages/MainPage.xaml:6-8`). El ejemplo no hace nada visible al ejecutarse (B-05 del GAP-REPORT).
+- ⚠️ Desuscribirse en un finalizador es poco fiable: mientras el evento estático retiene al objeto, el finalizador no corre.
+- ⚠️ Namespace `Ejemplo_Maui_Conexion` (`RootNamespace` en `Ejemplo_Maui_Connectivity.csproj:8`; `MauiProgram.cs:3`) no coincide con la carpeta/proyecto.
+- ⚠️ Existe `Platforms/Windows/` y propiedades Windows en el csproj (`:21,25-26`), pero los TFM no incluyen Windows (`:4-5`).
+- ⚠️ `Utilities/ConnectivityTest.cs` es copia literal del bloque de `Ejemplo_Docs_Red/Readme.md:22-64` (ejemplo de la documentación oficial). `Readme.md` está en codificación no UTF-8.
 
-- Suscripción en el constructor y desuscripción **en el finalizador** (`~ConnectivityTest()`) a `Connectivity.ConnectivityChanged`.
-- En el handler: distinguir `ConstrainedInternet` de la pérdida de acceso, y recorrer `e.ConnectionProfiles` para listar las conexiones activas.
+## 6. Fuentes
 
-⚠️ **Nadie la instancia**: no hay ninguna referencia a `ConnectivityTest` fuera de su propio archivo, y desuscribirse desde un finalizador no es una técnica recomendable (el evento estático mantiene viva la instancia, así que el finalizador puede no ejecutarse nunca). Es material de lectura, no un patrón a copiar.
+| Ruta | Contiene |
+|---|---|
+| `Ejemplos_Devices/Red/Ejemplo_Maui_Connectivity/Utilities/ConnectivityTest.cs` | Suscripción a `ConnectivityChanged` |
+| `Ejemplos_Devices/Red/Ejemplo_Maui_Connectivity/Platforms/Android/AndroidManifest.xml` | Permisos de red |
+| `Ejemplos_Devices/Red/Ejemplo_Docs_Red/Readme.md` | Enlace a la doc MAUI, estados de `NetworkAccess`, ejemplo |
 
-## 4. Observaciones
+## 7. Prosa relacionada
 
-- **El nombre del proyecto y el del namespace no coinciden:** la carpeta y el `.csproj` son `Ejemplo_Maui_Connectivity`, pero `<RootNamespace>` es `Ejemplo_Maui_**Conexion**` y todo el código declara `Ejemplo_Maui_Conexion.*`. El `ApplicationTitle` es «Maui Conexion».
-- El `.csproj` declara `SupportedOSPlatformVersion` para **windows** (`10.0.17763.0`) y existe `Platforms/Windows/App.xaml.cs`, pero **el TFM de Windows no está en `TargetFrameworks`**: esa condición nunca aplica.
-- No tiene workflow de CI ([índice 09](09_CI-CD-y-Build.md)).
-
-## 5. Fuentes
-
-| Ruta | Contenido |
-|------|-----------|
-| `Red/Ejemplo_Docs_Red/Readme.md` | Los 5 valores de `NetworkAccess` y el ejemplo del evento |
-| `Red/Ejemplo_Maui_Connectivity/Utilities/ConnectivityTest.cs` | Suscripción a `ConnectivityChanged` y recorrido de perfiles |
+- [Pieza red](../../Ejemplos_Maui_Devices-docs/docs/pieces/red/README.md) — estructura, ejecución, permisos, snippets, extensiones y preguntas guía.
+- [Plan-Armonizacion-Overlays](../../Analisis/Plan-Armonizacion-Overlays.md) — overlay de Red de la híbrida (cumple los invariantes; pendientes P-2/P-8).
+- [GAP-REPORT](../../Ejemplos_Maui_Devices-docs/GAP-REPORT.md) — B-05.

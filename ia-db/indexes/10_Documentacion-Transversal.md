@@ -1,128 +1,148 @@
 # 10 — Documentación transversal
 
-> **Propósito:** los documentos que no pertenecen a un solo dominio — la arquitectura web↔híbrida, los certificados SSL, la propuesta Rosetta, los apuntes de MVVM/eventos y el CHANGELOG.
-> **Fuente primaria:** `Ejemplos_Devices/Docs/` (18 documentos, ~4.300 líneas), `CHANGELOG.md`, `README.md`, `.gitignore`.
-> **Índices relacionados:** todos — este índice es el mapa de la prosa; el detalle técnico está en los índices [01](01_Camara.md)–[09](09_CI-CD-y-Build.md).
+> **Propósito:** mapa de toda la prosa disponible —la que vive junto al código y la del repo de documentación— para saber **qué documento responde cada porqué** sin releerla. Una línea por documento; no se resume su contenido.
+> **Fuentes primarias:** repo de código (`README.md`, `CHANGELOG.md`, `Ejemplos_Devices/Docs/`, `Ejemplos_Devices/*/Ejemplo_Docs_*/`), HEAD `cc80ce1`; repo de documentación (`Ejemplos_Maui_Devices-docs/`, `Analisis/`, `Guias/`, `CHANGELOG.md`, `PROMPTs/`).
+> Convención: la prosa del repo de documentación se enlaza relativa a este índice (`../../…`); la del código se cita por ruta desde la raíz del repo de código.
 
 ---
 
-## 1. Mapa de `Ejemplos_Devices/Docs/`
+## 1. Por qué pregunta → qué documento
 
-| Carpeta | Documentos | Tema | Índice que lo cubre |
-|---------|-----------:|------|---------------------|
-| `web-hibrida/` | 5 · 1.850 l. | La arquitectura de la app híbrida, comando por comando | [08](08_App-Hibrida-Integrada.md) |
-| `qr-nuget/` | 6 · 766 l. | Evaluación de librerías de escaneo | [02](02_QR.md) |
-| `Certificados-SSL/` | 3 · 624 l. | `Trust anchor for certification path not found` en el WebView de Android | este índice §3 |
-| `otros/` | 4 · 1.031 l. | `AsyncRelayCommand`, eventos + behaviors, Rosetta, entorno | este índice §4 y §5 |
-
-## 2. `web-hibrida/` — la arquitectura documentada
-
-Cinco documentos que describen la **secuencia de llamadas y la lógica** de cada comando del puente. Todos remiten a `maui-hibrido.md` como documento raíz y llaman **«Canal B»** al puente nativo por URL.
-
-| Documento | Líneas | Alcance |
-|-----------|-------:|---------|
-| `maui-hibrido.md` | 677 | El principio de funcionamiento: MAUI hospedando una web **Blazor Interactive Server remota** (`https://aplicada.somee.com`), cómo se consigue la interactividad (el **circuito SignalR**), el puente por URL con el flujo GPS en detalle, y **el diagnóstico del fallo de iOS** (la página se ve pero los botones no responden) |
-| `lectura-qr.md` | 393 | El comando `qr=qr` |
-| `captura-foto.md` | 326 | Los comandos `photo=photo` y `selfie=selfie`: cámara nativa, normalización y devolución al DOM sin recargar |
-| `envio-api.md` | 244 | El comando `sendAPI=sendAPI`: relay REST con `HttpClient` nativo |
-| `llamada.md` | 222 | El comando `phone=phone` y su overlay de estado |
-
-Los cuatro documentos de comando comparten la misma estructura: panorama del rol dentro del Canal B → secuencia de llamadas → lógica asociada → contraste con los otros comandos.
-
-⚠️ La solución `Ejemplos_Devices.slnx` declara la carpeta `/Docs/web-hibrida/` **vacía**, sin enlazar ninguno de los 5 documentos ([índice 09 §7](09_CI-CD-y-Build.md)).
-
-## 3. `Certificados-SSL/` — el caso `Trust anchor`
-
-Guía didáctica en tres piezas (`README.md` 353 l., `Anexo-A-Comandos.md` 223 l., `Anexo-B-Glosario.md` 48 l.) sobre un problema real y reproducible.
-
-| | |
+| Pregunta de porqué | Documento |
 |---|---|
-| **Síntoma** | El WebView (Android System WebView = Chromium) no abre `https://aplicada.somee.com`. En el log: `cr_X509Util … CertPathValidatorException: Trust anchor for certification path not found` |
-| **Caso de estudio** | Moto g42 (Android 12/13) |
-| **Causa raíz** | La raíz de la cadena es **`ISRG Root X2`** (Let's Encrypt / ISRG), una raíz **ECDSA de 2020** que no está en el almacén de confianza de Android en dispositivos viejos: el validador no puede cerrar la cadena |
-| **No es** | **No es Sectigo** — «esa fue una suposición equivocada del setup original (incluso el script se llamaba `download_sectigo.ps1`)» |
-| **Solución** | Embeber la raíz y los dos intermedios como `.pem` en `res/raw` y declararlos como `trust-anchors` para ese dominio en `network_security_config.xml` |
-| **Archivos** | `Ejemplo_Maui_Hibrida/Platforms/Android/Resources/xml/network_security_config.xml`, `…/raw/*.pem`, `AndroidManifest.xml` |
+| ¿Por qué hay un proyecto por técnica y no una app que lo haga todo? | [ADR-0001](../../Ejemplos_Maui_Devices-docs/docs/04-decisions/0001-un-proyecto-por-tecnica.md) · [vision](../../Ejemplos_Maui_Devices-docs/docs/00-overview/vision.md) |
+| ¿Por qué cada dispositivo es servicio tipado + overlay MVVM? | [ADR-0002](../../Ejemplos_Maui_Devices-docs/docs/04-decisions/0002-servicio-tipado-overlay-mvvm.md) · [07-overlays-dispositivos](../../Ejemplos_Maui_Devices-docs/docs/01-architecture/07-overlays-dispositivos.md) |
+| ¿Qué ve el usuario en cada estado de un overlay? | [08-pantallas-por-dispositivo](../../Ejemplos_Maui_Devices-docs/docs/01-architecture/08-pantallas-por-dispositivo.md) |
+| ¿Cómo se llegó a los cinco invariantes de los overlays? | [Plan-Armonizacion-Overlays](../../Analisis/Plan-Armonizacion-Overlays.md) |
+| ¿Por qué la web habla con lo nativo navegando a URLs? | [ADR-0003](../../Ejemplos_Maui_Devices-docs/docs/04-decisions/0003-puente-webview-comandos-url.md) · [bridge-contract](../../Ejemplos_Maui_Devices-docs/docs/pieces/integrada/bridge-contract.md) |
+| ¿Por qué se cancela siempre la navegación y se cierra así el overlay GPS? | [ADR-0009](../../Ejemplos_Maui_Devices-docs/docs/04-decisions/0009-ciclo-vida-overlay-gps-y-cancelacion-navegacion.md) |
+| ¿Cómo funciona cada comando del puente (foto, QR, llamada, relay REST)? | `Ejemplos_Devices/Docs/web-hibrida/{captura-foto,lectura-qr,llamada,envio-api}.md` |
+| ¿Por qué Blazor Interactive Server remoto dentro del WebView y qué problemas tiene en iOS? | `Ejemplos_Devices/Docs/web-hibrida/maui-hibrido.md` · [pieza integrada](../../Ejemplos_Maui_Devices-docs/docs/pieces/integrada/README.md) |
+| ¿Por qué BSN y no BSM para QR en iOS? | [ADR-0004](../../Ejemplos_Maui_Devices-docs/docs/04-decisions/0004-qr-bsn-recomendada-ios.md) · `Ejemplos_Devices/Docs/qr-nuget/04-recomendacion.md` |
+| ¿Por qué el simulador de BSM compila en x64 con Rosetta? | `Ejemplos_Devices/Docs/otros/propuesta-rosetta.md` · `Ejemplos_Devices/Docs/qr-nuget/03-matriz-rid.md` |
+| ¿Por qué imprimir con el motor DSL y no ESC/POS directo? | [ADR-0005](../../Ejemplos_Maui_Devices-docs/docs/04-decisions/0005-impresion-motor-dsl.md) · [pieza printer](../../Ejemplos_Maui_Devices-docs/docs/pieces/printer/README.md) |
+| ¿Por qué iOS solo en CI y Android solo local? | [ADR-0006](../../Ejemplos_Maui_Devices-docs/docs/04-decisions/0006-ci-ios-adhoc-android-local.md) · [09_CI-CD-y-Build](09_CI-CD-y-Build.md) |
+| ¿Por qué la clave de Google Maps no está en el repo? | [ADR-0007](../../Ejemplos_Maui_Devices-docs/docs/04-decisions/0007-secretos-fuera-del-repo.md) · `Ejemplos_Devices/GPS/Ejemplo_Docs_GPS/secret.md` |
+| ¿Por qué la app embebe certificados para el WebView Android? | [ADR-0008](../../Ejemplos_Maui_Devices-docs/docs/04-decisions/0008-trust-anchors-embebidos-webview.md) · `Ejemplos_Devices/Docs/Certificados-SSL/README.md` |
+| ¿Por qué `AsyncRelayCommand` y no handlers async sueltos? | `Ejemplos_Devices/Docs/otros/AsyncRelayCommandOptions.md` |
+| ¿Por qué `EventToCommandBehavior` sobre el `WebView`? | `Ejemplos_Devices/Docs/otros/Eventos.md` |
+| ¿Cómo pasar una foto recién tomada a otra pantalla? | `Ejemplos_Devices/Camera/Ejemplo_Docs_Photo/Transferencia_Foto_Entre_Pantallas.md` |
+| ¿Cómo hace el servicio GPS para que el overlay reaccione? | `Ejemplos_Devices/GPS/Ejemplo_Docs_GPS/servicio.md` |
+| ¿Qué permisos y convenciones MVVM son transversales? | [06-crosscutting](../../Ejemplos_Maui_Devices-docs/docs/01-architecture/06-crosscutting.md) |
+| ¿Qué falta documentar o está desactualizado? | [GAP-REPORT](../../Ejemplos_Maui_Devices-docs/GAP-REPORT.md) · [docs-manifest](../../Ejemplos_Maui_Devices-docs/docs-manifest.yaml) |
+| ¿Qué cambió y cuándo (código / documentación)? | `CHANGELOG.md` · [CHANGELOG de la documentación](../../CHANGELOG.md) |
 
-El `Anexo-A` trae los comandos de inspección con salidas de ejemplo (`openssl`, PowerShell + `X509Chain`, `adb`); el `Anexo-B`, el glosario PKI/TLS.
+## 2. ADR
 
-> El script `Utilities/download_sectigo.ps1` **conserva el nombre equivocado** que el propio documento señala. Es la huella de la hipótesis descartada.
+Todos en `Ejemplos_Maui_Devices-docs/docs/04-decisions/`; estado en la línea 6 del frontmatter; decisión en la sección «Decisión» (`:25`, salvo ADR-0009 `:39`).
 
-## 4. `otros/propuesta-rosetta.md` — la propuesta que el repo terminó ejecutando
+| N.º | Título | Estado | Decisión en una línea | Cita |
+|---|---|---|---|---|
+| 0001 | Un proyecto MAUI mínimo por técnica de integración | draft | cada técnica en su propio proyecto; la híbrida es la única integradora | [0001](../../Ejemplos_Maui_Devices-docs/docs/04-decisions/0001-un-proyecto-por-tecnica.md) |
+| 0002 | Patrón por dispositivo — servicio tipado + overlay MVVM | draft | interfaz `I*Service` en DI + overlay con ViewModel que maneja permisos, progreso y resultado | [0002](../../Ejemplos_Maui_Devices-docs/docs/04-decisions/0002-servicio-tipado-overlay-mvvm.md) |
+| 0003 | Puente WebView ↔ nativo por comandos en la URL | draft | la web navega a URLs convencionales; el primer `IUrlCommandHandler` que coincide despacha | [0003](../../Ejemplos_Maui_Devices-docs/docs/04-decisions/0003-puente-webview-comandos-url.md) |
+| 0004 | QR — BSN (Apple Vision) recomendada frente a BSM (ML Kit) en iOS | draft | BSN recomendada; BSM queda como comparativo con CI adaptado | [0004](../../Ejemplos_Maui_Devices-docs/docs/04-decisions/0004-qr-bsn-recomendada-ios.md) |
+| 0005 | Impresión térmica — motor DSL (JSON → raster) sobre ESC/POS directo | draft | `MotorDsl.*` compone, rasteriza y el servicio Bluetooth transporta; ThermalPrinter es línea base | [0005](../../Ejemplos_Maui_Devices-docs/docs/04-decisions/0005-impresion-motor-dsl.md) |
+| 0006 | CI de iOS con firma ad-hoc en macOS; ejecución local en Android físico | draft | Android local por `.bat`; iOS solo en CI `macos-15` con firma ad-hoc y simulador | [0006](../../Ejemplos_Maui_Devices-docs/docs/04-decisions/0006-ci-ios-adhoc-android-local.md) |
+| 0007 | Secretos de build fuera del repositorio | draft | `ApiKeys.cs` gitignoreado, generado desde plantilla (local) o desde secrets (CI) | [0007](../../Ejemplos_Maui_Devices-docs/docs/04-decisions/0007-secretos-fuera-del-repo.md) |
+| 0008 | TLS en WebView Android — trust anchors embebidos | draft | raíz + dos intermedios en `res/raw` declarados por dominio en `network_security_config.xml` | [0008](../../Ejemplos_Maui_Devices-docs/docs/04-decisions/0008-trust-anchors-embebidos-webview.md) |
+| 0009 | Cierre determinista del overlay GPS y cancelación robusta del puente | **accepted** | siempre `e.Cancel = true` ante URL-comando + guard de reentrada + cierre determinista del overlay | [0009](../../Ejemplos_Maui_Devices-docs/docs/04-decisions/0009-ciclo-vida-overlay-gps-y-cancelacion-navegacion.md) |
 
-192 líneas. Estado declarado: «Propuesta para reevaluar en el workspace de pruebas de pipelines». Ámbito: **solo YAML del workflow**, sin tocar código ni NuGets.
+## 3. Prosa del repo de código
 
-El job de iOS construye **dos binarios distintos** y solo uno falla:
+| Ruta | Líneas | Qué responde |
+|---|---|---|
+| `README.md` | 24 | portada: enlaces a los `Ejemplo_Docs_*` de Printer, QR, Cámara, Red, GPS y Maps (`:5-23`) |
+| `CHANGELOG.md` | 371 | historia de cambios de código por fecha (última entrada `[2026-07-23]`, `:6`) |
+| `Ejemplos_Devices/Docs/Certificados-SSL/README.md` | 353 | resolver «Trust anchor for certification path not found» en Android |
+| `Ejemplos_Devices/Docs/Certificados-SSL/Anexo-A-Comandos.md` | 223 | comandos de inspección TLS |
+| `Ejemplos_Devices/Docs/Certificados-SSL/Anexo-B-Glosario.md` | 48 | glosario PKI/TLS |
+| `Ejemplos_Devices/Docs/otros/AsyncRelayCommandOptions.md` | 412 | `AsyncRelayCommand` y sus opciones |
+| `Ejemplos_Devices/Docs/otros/Eventos.md` | 312 | eventos del `WebView` + `EventToCommandBehavior` |
+| `Ejemplos_Devices/Docs/otros/GetEnviromentVersion.md` | 115 | instalar y verificar SDK/workloads la primera vez |
+| `Ejemplos_Devices/Docs/otros/propuesta-rosetta.md` | 192 | compilar el simulador iOS en x86_64 (Rosetta) |
+| `Ejemplos_Devices/Docs/qr-nuget/README.md` | 52 | entrada a la evaluación de NuGets de QR |
+| `Ejemplos_Devices/Docs/qr-nuget/01-analisis-uso-actual.md` … `05-plan-migracion.md` | 158/174/47/77/258 | uso actual de BSM, alternativas, matriz de RID, recomendación, migración BSM→BSN |
+| `Ejemplos_Devices/Docs/web-hibrida/maui-hibrido.md` | 677 | arquitectura de la híbrida con Blazor Interactive Server remoto |
+| `Ejemplos_Devices/Docs/web-hibrida/captura-foto.md` | 326 | comando de foto/selfie |
+| `Ejemplos_Devices/Docs/web-hibrida/lectura-qr.md` | 393 | comando de QR |
+| `Ejemplos_Devices/Docs/web-hibrida/llamada.md` | 222 | comando de llamada |
+| `Ejemplos_Devices/Docs/web-hibrida/envio-api.md` | 244 | relay REST (`sendAPI`) |
+| `Ejemplos_Devices/Camera/Ejemplo_Docs_Photo/Readme.md` | 81 | notas de los ejemplos de cámara |
+| `Ejemplos_Devices/Camera/Ejemplo_Docs_Photo/Transferencia_Foto_Entre_Pantallas.md` | 762 | pasar la foto entre pantallas |
+| `Ejemplos_Devices/GPS/Ejemplo_Docs_GPS/Readme.md` | 2 | solo un enlace a Microsoft Learn (geolocalización) |
+| `Ejemplos_Devices/GPS/Ejemplo_Docs_GPS/secret.md` | 115 | manejo de API keys en MAUI |
+| `Ejemplos_Devices/GPS/Ejemplo_Docs_GPS/servicio.md` | 129 | alternativas para que el servicio GPS alimente al overlay |
+| `Ejemplos_Devices/Integrada/Ejemplo_Docs_Integrada/Readme.md` | 0 | vacío |
+| `Ejemplos_Devices/Maps/Ejemplo_Docs_Maps/Readme.md` | 0 | vacío (el enlace del `README.md` raíz llega aquí) |
+| `Ejemplos_Devices/Maps/Ejemplo_Maui_Mapas/Readme.md` | 4 | enlace a Microsoft Learn (control Map) |
+| `Ejemplos_Devices/Printer/Ejemplo_Docs_Printer/Readme.md` | 21 | índice de la documentación de impresión (manuales, prompts, pruebas; 15 `.md` en la carpeta) |
+| `Ejemplos_Devices/QR/Ejemplo_Docs_QR/Readme.md` | 115 | uso XAML de los lectores |
+| `Ejemplos_Devices/QR/Ejemplo_Docs_QR/cicd.md` | 263 | errores de compilación del CI de QR |
+| `Ejemplos_Devices/Red/Ejemplo_Docs_Red/Readme.md` | 64 | notas de conectividad |
+| `.github/workflows/Readme.md`, `Pipelinea-Version.md`, `Analisis/log_{1,2}.md` | 53/14/2110/102 | entorno local de referencia, bitácora del yml y logs de CI → [09_CI-CD-y-Build](09_CI-CD-y-Build.md) |
 
-| Build | RID | Propósito | ¿Falla? |
-|-------|-----|-----------|---------|
-| Simulador | `iossimulator-arm64` | Smoke test + GIF de evidencia | ❌ **Sí** |
-| Release / IPA | `ios-arm64` | Entregable para iPhone físico | ✅ No |
+## 4. Prosa del repo de documentación
 
-**La causa raíz, explicada en términos de Mach-O:** el runner es Apple Silicon, así que el RID del simulador es `iossimulator-arm64`. `BarcodeScanner.Mobile.Maui` 9.0.1 usa el SDK nativo de **Google ML Kit**, que publica `arm64` **solo para device** y `x86_64` para simulador. En Apple Silicon device y simulador comparten CPU arm64, pero el Mach-O los distingue por el flag `LC_BUILD_VERSION` (`PLATFORM_IOS` vs `PLATFORM_IOSSIMULATOR`), y `ld` rechaza mezclarlos.
+### 4.1 `Ejemplos_Maui_Devices-docs/` (todo `status: draft`)
 
-Es el documento fundacional de dos decisiones que sí se ejecutaron: la variante `iossimulator-x64` + Rosetta de los dos workflows de BSM ([índice 09 §4.3](09_CI-CD-y-Build.md)) y, después, la evaluación de alternativas que buscó **eliminar** esa dependencia ([índice 02 §2](02_QR.md)). El estudio de NuGets lo cita explícitamente como la solución con fecha de caducidad, porque Apple está retirando Rosetta.
+| Documento | Responde |
+|---|---|
+| [README](../../Ejemplos_Maui_Devices-docs/README.md) | índice maestro del corpus |
+| [docs-manifest.yaml](../../Ejemplos_Maui_Devices-docs/docs-manifest.yaml) | qué documentos debería haber por pieza |
+| [GAP-REPORT](../../Ejemplos_Maui_Devices-docs/GAP-REPORT.md) | qué falta, derivas, bugs latentes, hallazgo de seguridad S-01 |
+| [GLOSSARY](../../Ejemplos_Maui_Devices-docs/GLOSSARY.md) | vocabulario controlado |
+| [vision](../../Ejemplos_Maui_Devices-docs/docs/00-overview/vision.md) | visión y alcance |
+| [system-map](../../Ejemplos_Maui_Devices-docs/docs/00-overview/system-map.md) | inventario de piezas |
+| [01-context](../../Ejemplos_Maui_Devices-docs/docs/01-architecture/01-context.md) | C4-L1 |
+| [02-containers](../../Ejemplos_Maui_Devices-docs/docs/01-architecture/02-containers.md) | C4-L2 |
+| [04-runtime-views](../../Ejemplos_Maui_Devices-docs/docs/01-architecture/04-runtime-views.md) | flujos de punta a punta |
+| [06-crosscutting](../../Ejemplos_Maui_Devices-docs/docs/01-architecture/06-crosscutting.md) | seguridad, permisos, convenciones MVVM |
+| [07-overlays-dispositivos](../../Ejemplos_Maui_Devices-docs/docs/01-architecture/07-overlays-dispositivos.md) | fundamento del patrón overlay |
+| [08-pantallas-por-dispositivo](../../Ejemplos_Maui_Devices-docs/docs/01-architecture/08-pantallas-por-dispositivo.md) | catálogo de pantallas por estado |
+| [ADR 0001–0009](../../Ejemplos_Maui_Devices-docs/docs/04-decisions/) | §2 |
+| [catalog](../../Ejemplos_Maui_Devices-docs/docs/05-apis/catalog.md) | APIs y contratos (backend Blazor) |
+| [build-and-run](../../Ejemplos_Maui_Devices-docs/docs/07-operations/build-and-run.md) | runbook local + CI |
+| [developer-setup](../../Ejemplos_Maui_Devices-docs/docs/08-onboarding/developer-setup.md) | primer día del desarrollador |
+| [pieces/camera](../../Ejemplos_Maui_Devices-docs/docs/pieces/camera/README.md) | 5 variantes de captura comparadas |
+| [pieces/gps](../../Ejemplos_Maui_Devices-docs/docs/pieces/gps/README.md) | geolocalización y geocodificación inversa |
+| [pieces/integrada](../../Ejemplos_Maui_Devices-docs/docs/pieces/integrada/README.md) | app híbrida + backend Blazor |
+| [pieces/integrada/bridge-contract](../../Ejemplos_Maui_Devices-docs/docs/pieces/integrada/bridge-contract.md) | contrato de comandos y endpoints |
+| [pieces/maps](../../Ejemplos_Maui_Devices-docs/docs/pieces/maps/README.md) | mapa nativo con pines |
+| [pieces/phone](../../Ejemplos_Maui_Devices-docs/docs/pieces/phone/README.md) | marcador vs llamada directa |
+| [pieces/printer](../../Ejemplos_Maui_Devices-docs/docs/pieces/printer/README.md) | impresión térmica Bluetooth 58 mm |
+| [pieces/qr](../../Ejemplos_Maui_Devices-docs/docs/pieces/qr/README.md) | 4 librerías × 2 UIs |
+| [pieces/red](../../Ejemplos_Maui_Devices-docs/docs/pieces/red/README.md) | estado y cambios de conectividad |
 
-## 5. `otros/` — los apuntes de técnica
+### 4.2 Resto del repo de documentación
 
-| Documento | Líneas | Contenido |
-|-----------|-------:|-----------|
-| `AsyncRelayCommandOptions.md` | 412 | Qué resuelve `AsyncRelayCommand`: `ICommand.Execute` devuelve `void`, así que un `async void` deja excepciones sin capturar y no permite deshabilitar el botón mientras corre. Documenta la **implementación didáctica sin dependencias** que aparece duplicada en `GPS/Ejemplo_Maui_GPS/ViewModels/` y `Phone/Ejemplo_Maui_DirectCall/ViewModels/`, «pensada para mostrar MVVM sin incorporar `CommunityToolkit.Mvvm`» |
-| `Eventos.md` | 312 | **El problema del `EventToCommandBehavior` con compiled bindings**: la app inicia, el `WebView` muestra la URL, pero `Navigating`/`Navigated` **nunca llegan al ViewModel y no hay ninguna excepción**. La causa es la interacción de `x:DataType` con los `Behavior`, que no heredan `BindingContext` — el mismo mecanismo que documenta `WebViewBridgeBehavior` en su código ([índice 08 §5](08_App-Hibrida-Integrada.md)) |
-| `GetEnviromentVersion.md` | 115 | Instalación del entorno la primera vez (7zip requerido por el SDK de Android, NuGet, …); acompaña a `scripts/GetEnviromentVersion.bat` |
-| `propuesta-rosetta.md` | 192 | §4 |
+| Ruta | Responde |
+|---|---|
+| [README](../../README.md) | puertas de entrada (docs para el porqué, ia-db para el dónde) |
+| [CHANGELOG](../../CHANGELOG.md) | historia de la documentación y de la ia-db |
+| [Analisis/Plan-Armonizacion-Overlays](../../Analisis/Plan-Armonizacion-Overlays.md) | plan (ejecutado, 2026-07-17) para llevar los cuatro overlays de la híbrida a los mismos invariantes |
+| `Guias/Guias-Desarrollador/README.md`, `Extender-Comando.md` | **vacíos** (0 líneas) |
 
-Los dos primeros son **el porqué de código que está duplicado a propósito**: `AsyncRelayCommand` en dos proyectos y la mecánica de behaviors en la híbrida.
+### 4.3 `PROMPTs/` (solo listado: tool-prompts, no documentación)
 
-## 6. Documentos de raíz
+| Carpeta | Archivos |
+|---|---|
+| `PROMPTs/Comportamientos/` | `Analisis-Comportamiento-Software-01.md`, `-02.md` (+ carpeta con 7 casos y una imagen), `-03.md` (+ `Primera`/`Segunda`/`Tercera.md`), `Analizar-Fundanalidad-Comportamiento-Libreria-Nuget-PrintTermal.md`, `…-Aplicacion.md` |
+| `PROMPTs/Documentaciones/` | `Documentacion-Actualizar-Ejemplos_Maui_Devices.md`, `Indexado-Actualizar.md` |
+| `PROMPTs/Guias/` | `Crear-Extender-Comando.md` |
+| `PROMPTs/Implementaciones/` | `Analizar-Implementacion-Print-PoC-En-Proyecto.md`, `Crear-Flow-End2End-App.md`, `Crear-Flow-end2end-Ejemplo_Maui_Hibrida.md`, `Crear-Prompt-Analizar-Implementacion-End2End.md` |
+| `PROMPTs/Indexado/` | `Crear-Indexado.md`, `Actualizar-Indexado.md` |
 
-### `README.md`
+## 5. Huecos y derivas de la prosa (verificados a HEAD)
 
-25 líneas. Portada con seis entradas que apuntan a la carpeta `Ejemplo_Docs_*` de cada dominio: Thermal Printer (con el GIF `ejemplo_print_thermal.gif`), Lectura de QR, Cámara, Red y Conectividad, GPS y Maps. Las cinco últimas dicen **«En construcción …»** — lo que refleja el estado de esas carpetas `Ejemplo_Docs_*`, no el de los ejemplos, que sí están desarrollados.
+| Hecho | Cita |
+|---|---|
+| El README del repo de documentación habla de «las 8 decisiones de arquitectura»; hay 9 ADR | `README.md` del repo de documentación (tabla «Atajos») |
+| `Guias/` existe pero sus dos archivos están vacíos, aunque hay un tool-prompt para generar `Extender-Comando` | `Guias/Guias-Desarrollador/*.md` · `PROMPTs/Guias/Crear-Extender-Comando.md` |
+| `Docs/web-hibrida/` tiene 5 documentos pero el `.slnx` muestra la carpeta vacía; dos entradas `File` del `.slnx` apuntan a rutas inexistentes | `Ejemplos_Devices/Ejemplos_Devices.slnx:34,62,111` (detalle en [09 §9](09_CI-CD-y-Build.md)) |
+| El `README.md` raíz no enlaza Integrada, Phone ni `Docs/`; su enlace de Maps lleva a un Readme vacío | `README.md:5-23` · `Ejemplos_Devices/Maps/Ejemplo_Docs_Maps/Readme.md` |
 
-### `CHANGELOG.md`
+## Ver también
 
-Basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) 1.1.0, en español. **9 entradas**, de `2026-07-13` a `2026-07-23` (la más reciente).
-
-Convenciones observables:
-- Encabezado `## [AAAA-MM-DD] — <título temático>`, no versiones semánticas.
-- Una línea `Alcance:` inmediatamente debajo del título, con las rutas afectadas.
-- Subsecciones estándar (`### Agregado`, `### Cambiado`, `### Corregido`, `### Eliminado`) más dos propias: **`### Notas`** y **`### Activado`** (esta última se usó para activar el `push` del CI de la híbrida).
-- Las entradas explican **el defecto que motivó el cambio**, no solo el cambio: p. ej. la del Plan 1 enumera los dos defectos del modelo anterior del puente.
-
-Recorrido temático de las 9 entradas: impresión térmica y reorganización a `LibApp/` → fix de navegación del WebView y permisos Bluetooth → UX de impresión con códigos de error → armonización de overlays y primer proyecto de tests → tres entradas de CI/end2end → puente de comandos (Plan 1) → panel con ambos modos de GPS y namespaces `LibApp`.
-
-### `.gitignore`
-
-421 líneas: el `.gitignore` estándar de Visual Studio más una sección propia al final — **«API keys locales (no subir al repo)»** con `**/Services/ApiKeys.cs`, que es lo que hace que el proyecto de GPS necesite crear ese archivo desde su `.template` ([índice 04 §7](04_GPS.md)).
-
-## 7. Documentación fuera de este repositorio
-
-El código referencia documentos que **no viven en el repositorio de código** sino en `Ejemplos_Maui_Devices.Documentacion` (donde está esta ia-db):
-
-| Referencia en el código | Dónde |
-|-------------------------|-------|
-| `Analisis/Plan-Armonizacion-Overlays.md` §2 | `Ejemplo_Maui_Hibrida.Tests/Invariantes.cs:9` |
-| **ADR-0001** (cada ejemplo autocontenido y copiable) | `Ejemplo_Maui_Hibrida.Tests.csproj` |
-| **ADR-0009** (guard de reentrada, cultura de coordenadas) | `MainViewModel.cs`, `GpsCommandHandler.cs`, `Ejemplo_Maui_Hibrida.Tests.csproj` |
-| **Plan 1** §3/§4/§5 (ejes A y B, invariante de continuación) | todo `LibApp/UrlCommands/` |
-
-Al leer esos comentarios hay que buscar el documento en el repositorio de documentación, no en el de código.
-
-## 8. Observaciones
-
-- **La documentación por dominio está desbalanceada.** `Ejemplo_Docs_Printer/` tiene ~3.100 líneas de manuales y `Docs/web-hibrida/` ~1.850; en el otro extremo, `GPS/Ejemplo_Docs_GPS/Readme.md` es **un link** y `Maps/Ejemplo_Docs_Maps/Readme.md` está **vacío**.
-- Los documentos de análisis (`qr-nuget/`, `propuesta-rosetta.md`) declaran su fecha y su estado («evaluación read-only», «propuesta para reevaluar»), y varios ya fueron superados por los hechos: la propuesta Rosetta se ejecutó y luego se buscó revertirla; el estudio de NuGets nombra un proyecto (`Ejemplo_LectorQR_Dialog`) que ya no existe.
-- El repositorio conserva deliberadamente **el rastro del error**: el nombre de `download_sectigo.ps1`, los bloques de código comentados con la versión anterior, los workflows del proyecto retirado. Es material didáctico, no descuido.
-
-## 9. Fuentes
-
-| Ruta | Contenido |
-|------|-----------|
-| `Docs/web-hibrida/maui-hibrido.md` | Principio de funcionamiento del híbrido, circuito SignalR, Canal B, diagnóstico de iOS |
-| `Docs/web-hibrida/{captura-foto,lectura-qr,llamada,envio-api}.md` | Secuencia y lógica de cada comando |
-| `Docs/Certificados-SSL/` | El caso `Trust anchor`, comandos de inspección y glosario PKI/TLS |
-| `Docs/otros/propuesta-rosetta.md` | La causa raíz Mach-O del fallo de MLKit y la propuesta x64/Rosetta |
-| `Docs/otros/{AsyncRelayCommandOptions,Eventos}.md` | MVVM sin toolkit y el problema de behaviors con compiled bindings |
-| `CHANGELOG.md` | 9 entradas fechadas, de 2026-07-13 a 2026-07-23 |
-| `README.md`, `.gitignore` | Portada del repositorio y la sección de API keys locales |
+- [00_MASTER-INDEX](00_MASTER-INDEX.md) · [09_CI-CD-y-Build](09_CI-CD-y-Build.md) · [08_App-Hibrida-Integrada](08_App-Hibrida-Integrada.md) · [02_QR](02_QR.md)
+- [README de la documentación](../../Ejemplos_Maui_Devices-docs/README.md) · [GAP-REPORT](../../Ejemplos_Maui_Devices-docs/GAP-REPORT.md)

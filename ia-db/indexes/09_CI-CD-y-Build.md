@@ -1,207 +1,204 @@
-# 09 — CI/CD, build y simulación
+# 09 — CI/CD y build
 
-> **Propósito:** los 18 workflows de GitHub Actions que compilan cada ejemplo para el simulador iOS, cómo instalan su propio Xcode y .NET, y la simulación con grabación de evidencia.
-> **Fuente primaria:** `.github/workflows/` (18 `.yml` + 2 `.md`), `Utilities/` y `Ejemplos_Devices/Ejemplos_Devices.slnx`.
-> **Índices relacionados:** [00_MASTER-INDEX](00_MASTER-INDEX.md) · [02_QR](02_QR.md) (el problema de MLKit/Rosetta que motiva la variante x64) · [08_App-Hibrida-Integrada](08_App-Hibrida-Integrada.md).
+> **Propósito:** ubicar todo lo que compila, firma, simula y despliega los ejemplos: los 18 workflows `cd-ios-*` (una plantilla y sus variantes), los scripts de simulación y Maestro, los `.bat` de arranque Android, `vs.bat`, el `.slnx` y el `.gitignore`.
+> **Fuentes primarias:** `.github/workflows/` (18 `.yml` + `Readme.md` + `Pipelinea-Version.md` + `Analisis/`), `Utilities/`, `Ejemplos_Devices/scripts/`, `vs.bat`, `Ejemplos_Devices/Ejemplos_Devices.slnx`, `.gitignore`. Rutas relativas a la raíz del repo de código. HEAD indexado `cc80ce1` (incluye `85384c2` y `cc80ce1`, que corrigen mayúsculas de rutas en el `.slnx` y en `Docs/web-hibrida/maui-hibrido.md`).
+> El porqué está en [ADR-0006](../../Ejemplos_Maui_Devices-docs/docs/04-decisions/0006-ci-ios-adhoc-android-local.md) y [ADR-0007](../../Ejemplos_Maui_Devices-docs/docs/04-decisions/0007-secretos-fuera-del-repo.md); el procedimiento, en el [runbook build-and-run](../../Ejemplos_Maui_Devices-docs/docs/07-operations/build-and-run.md). Este índice dice **dónde** está cada cosa a HEAD.
+
+No existen `Directory.Build.props`/`.targets` ni `global.json` en el repo: la versión de SDK solo se fija en los workflows (§3.1).
 
 ---
 
-## 1. El árbol
+## 1. Panorama
 
-```
-.github/workflows/
-├── cd-ios-camera.*.yml        4 workflows  → índice 01
-├── cd-ios-qr.*.yml            9 workflows  → índice 02
-├── cd-ios-printer.*.yml       1 workflow   → índice 03
-├── cd-ios-gps.*.yml           1 workflow   → índice 04
-├── cd-ios-phone.*.yml         2 workflows  → índice 06
-├── cd-ios-Integrada.*.yml     1 workflow   → índice 08
-├── Readme.md                  Versiones de workloads de .NET de la máquina de desarrollo
-├── Pipelinea-Version.md       Bitácora de versiones del pipeline
-└── Analisis/log_1.md, log_2.md
-Utilities/
-├── simular.sh                 332 l. — arranque del simulador + grabación + GIF
-├── simular_ui.sh              233 l. — variante con recorrido Maestro y video MP4
-├── download_sectigo.ps1
-└── end2end/                   3 flujos Maestro («dedo virtual»)
-```
-
-## 2. Convención de nombre y categorías
-
-`cd-ios-<categoria>.<Proyecto>.yml`, donde `<categoria>` coincide con la carpeta bajo `Ejemplos_Devices/`.
-
-| Categoría | Workflows |
-|-----------|-----------|
-| `qr` | 9 (los 8 proyectos actuales + `Ejemplo_LectorQR_Dialog`) |
-| `camera` | 4 (`MiMediaPicker_Callback`, `_Callback_Normalizacion`, `_Task`, `MiMediaSelfie_Callback_Normalizacion`) |
-| `phone` | 2 (`Ejemplo_Dialer`, `Ejemplo_DirectCall`) |
-| `gps` | 1 (`Ejemplo_GPS`) |
-| `printer` | 1 (`Ejemplo_MotorDSL`) |
-| `Integrada` | 1 (`Ejemplo_Maui_Hibrida`) — única categoría en mayúscula |
-
-**Qué no tiene workflow:** `Ejemplo_Photo_MediaPicker`, `Ejemplo_Maui_Mapas`, `Ejemplo_Maui_Connectivity`, `Ejemplo_ThermalPrinter`, `Ejemplo_MotorDSL_Dialog`, `Ejemplo_ws_Blazor` y `Ejemplo_Maui_Hibrida.Tests`. **La suite de tests no se ejecuta en CI**, aunque su TFM `net10.0` plano fue elegido justamente para poder correrla ahí ([índice 08 §9](08_App-Hibrida-Integrada.md)).
-
-⚠️ `cd-ios-qr.Ejemplo_LectorQR_Dialog.yml` apunta a un proyecto que **ya no existe** en el árbol (`com.ejemplos.devices.qr.dialog`): es el prototipo del que salieron los cuatro pares BSM/BSN/CS/ZN ([índice 02 §6](02_QR.md)).
-
-## 3. Disparadores
-
-Los 18 declaran `workflow_call`, así que **son invocables desde otro workflow**. El disparo por `push` está **comentado en 17 de 18**: solo `cd-ios-Integrada.Ejemplo_Maui_Hibrida.yml` lo tiene activo, filtrado a `Ejemplos_Devices/Integrada/Ejemplo_Maui_Hibrida/**` y excluyendo `**.md`, `.gitignore` y `.gitattributes`. En los demás, el bloque `push` sigue ahí comentado, con la ruta de su proyecto ya escrita.
-
-No hay ningún workflow «paraguas» que invoque a los demás: la ejecución es manual o por llamada externa.
-
-## 4. Anatomía del pipeline (32 pasos)
-
-Todos corren en `runs-on: macos-15` y siguen la misma secuencia. Lo distintivo es que **no usan el Xcode ni el .NET del runner: instalan los suyos**.
-
-| Bloque | Qué hace |
-|--------|----------|
-| Runner | Reporta arquitectura, CPU, modelo y cores de la VM |
-| Checkout | `actions/checkout@v4` |
-| **XCODE** | `pipx install gdown` → descarga **Xcode desde Google Drive** por ID de archivo → `xip --expand` → borra los Xcode del runner → `xcode-select --switch` → `-runFirstLaunch` + `-license accept` → `xcodebuild -downloadPlatform iOS` → arranca el simulador de prueba |
-| **.NETCORE** | **Borra `/Users/runner/.dotnet`** → instala la versión exacta con `dotnet-install.sh` → verifica |
-| **WORKLOADS** | `dotnet workload install ios maui maui-ios --version 10.0.100` |
-| **PATH** | Resuelve `SOLUTION_PATH`, `PROJECT_PATH`, `PLIST_PATH` con `realpath` y los exporta a `$GITHUB_ENV` |
-| **VERSIONADO** | Lee `CFBundleVersion` y `CFBundleShortVersionString` del `Info.plist` con `PlistBuddy` → `APP_VERSION_BUILD`; y `VERSION_FECHA` con `date +%Y%m%d%H%M` |
-| **MANIFEST** | `plutil -lint` sobre el `Info.plist`; falla el job si es inválido |
-| **BUILD** | `dotnet clean` → `restore` → `build` para `net10.0-ios` |
-| **FIRMA** | Firma **ad-hoc** manual (ver §4.1) |
-| **PUBLISH** | Zip del `.app` → `upload-artifact@v4`, `retention-days: 1` |
-| **ROSETTA** | Solo si `RUNTIME_IDENTIFIER_SIMULATOR == 'iossimulator-x64'`: `softwareupdate --install-rosetta` |
-| **RUN** | `brew install ffmpeg` → ejecuta el script de simulación → sube la evidencia |
-| **Cleanup** | `if: always()` — borra keychain y provisioning profile |
-
-Variables comunes: Xcode **26.0** (con el 26.3 comentado como alternativa), .NET **10.0.300** (con 10.0.102 comentado), workload **10.0.100**, simulador **iPhone 17 Pro Max**, `BUILD_CONFIG_SIMULATOR: Release`.
-
-Bloque de identidad del proyecto, el único que cambia entre workflows:
-
-```yaml
-PACKAGE_NAME:   'com.ejemplos.devices.qr.barcodescanner_native_maui.simple'
-SOLUTION_FOLDER:'Ejemplos_Devices'
-PROJECTS_ROOT:  'QR'
-PROJECT_NAME:   'BSN.LectorQR'
-PROJECT_FILE:   'BSN.LectorQR.csproj'
+```mermaid
+flowchart LR
+  subgraph Local["Local (Windows)"]
+    BAT["Ejemplos_Devices/scripts/*_launch.bat<br/>dotnet build -f net10.0-android -t:Run"] --> DEV[Android físico por USB]
+    VS["vs.bat → code ."]
+  end
+  subgraph CI["GitHub Actions — macos-15"]
+    WF["cd-ios-&lt;cat&gt;.&lt;Ejemplo&gt;.yml<br/>(job publish-ios)"] --> XC[Xcode 26.0 desde .xip]
+    XC --> NET[.NET 10.0.300 + workloads]
+    NET --> BLD["dotnet build net10.0-ios<br/>iossimulator-arm64 / x64"]
+    BLD --> SIGN[codesign ad-hoc]
+    SIGN --> ZIP[".app.zip → artefacto"]
+    SIGN --> SIM{"SCRIPT_SIMULATOR"}
+    SIM -->|simular.sh| GIF["frames → GIF"]
+    SIM -->|simular_ui.sh + Maestro| MP4["recorrido.mp4"]
+  end
 ```
 
-### 4.1 El build y la firma
+| Ruta | Plataforma | Dónde | Evidencia que deja |
+|---|---|---|---|
+| Local | Android (`net10.0-android`) | `Ejemplos_Devices/scripts/*_launch.bat` | app instalada y lanzada en el dispositivo |
+| CI | iOS simulador (`net10.0-ios`) | `.github/workflows/cd-ios-*.yml` | `.app.zip` + GIF o MP4 (retención 1 día) |
 
-```bash
-dotnet build "$PROJECTS_ROOT/$PROJECT_NAME/$PROJECT_FILE" \
-    -c Release -f:net10.0-ios \
-    -p:RuntimeIdentifier=iossimulator-arm64 \
-    -p:LinkMode=SdkOnly -p:CLI_Build=true \
-    -p:CodesignEntitlements=Platforms/iOS/Entitlements.Development.plist \
-    -p:EnableCodeSigning=false -p:CodesignProvision="" -p:CodesignKey="-" -v normal
-```
+No hay CI de Android ni build local de iOS (decisión en ADR-0006). Los `.csproj` solo agregan `net10.0-ios` cuando se compila en macOS (p. ej. `Ejemplos_Devices/GPS/Ejemplo_Maui_GPS/Ejemplo_Maui_GPS.csproj:4-5`).
 
-`LinkMode=SdkOnly` es la propiedad que `QR/Ejemplo_Docs_QR/cicd.md` identificó como parte de la solución al fallo de link de MLKit ([índice 02 §2](02_QR.md)).
+## 2. Inventario de workflows
 
-La firma se hace **a mano y en tres pasos**, porque el build va sin firmar: limpiar (`xattr -cr`, borrar `_CodeSignature`, `chmod +x`) → firmar cada `*.dll`/`*.dylib`/`*.aotdata*` con `codesign --sign "-"` → firmar el binario principal **con los entitlements** → sellar el bundle → verificar con `codesign -vv -d`. Sin AOT firmado el simulador rechaza la app.
+Todos: un job `publish-ios`, `runs-on: macos-15` (p. ej. `cd-ios-gps.Ejemplo_GPS.yml:50-51`), simulador `iPhone 17 Pro Max`, configuración `Release` salvo excepción (§4).
 
-Artefacto: `{VERSION_FECHA}_{APP_VERSION_BUILD}_{PACKAGE_NAME}.app.zip`.
+| Workflow (`.github/workflows/…`) | Proyecto (`PROJECTS_ROOT/PROJECT_NAME`) | `PACKAGE_NAME` | Disparador | RID | Simulación |
+|---|---|---|---|---|---|
+| `cd-ios-camera.Ejemplo_Photo_MiMediaPicker_Callback.yml` | `Camera/Ejemplo_Photo_MiMediaPicker_Callback` (`:36-39`) | `com.ejemplos.photo.mimediapicker.callback` (`:34`) | `workflow_call` | arm64 | `simular.sh` |
+| `cd-ios-camera.Ejemplo_Photo_MiMediaPicker_Callback_Normalizacion.yml` | `Camera/…_Callback_Normalizacion` (`:36-39`) | `com.ejemplos.devices.imagen.callback.normalizacion` (`:34`) | `workflow_call` | arm64 | `simular.sh` |
+| `cd-ios-camera.Ejemplo_Photo_MiMediaPicker_Task.yml` | `Camera/Ejemplo_Photo_MiMediaPicker_Task` (`:36-39`) | `com.ejemplos.devices.mimediapicker.task` (`:34`) | `workflow_call` | arm64 | `simular.sh` |
+| `cd-ios-camera.Ejemplo_Photo_MiMediaSelfie_Callback_Normalizacion.yml` | `Camera/Ejemplo_Photo_MiMediaSelfie_Callback_Normalizacion` (`:38-41`) | `com.ejemplos.devices.imagen.callback.normalizacion.miselfie` (`:36`) | `workflow_call` | arm64 | `simular.sh` |
+| `cd-ios-gps.Ejemplo_GPS.yml` | `GPS/Ejemplo_Maui_GPS` (`:36-39`) | `com.ejemplos.devices.gps` (`:34`) | `workflow_call` | arm64 | `simular.sh` |
+| `cd-ios-Integrada.Ejemplo_Maui_Hibrida.yml` | `Integrada/Ejemplo_Maui_Hibrida` (`:38-41`) | `com.ejemplos.devices.integrada.hibrida` (`:36`) | **`push` a `main`** con `paths` del proyecto (`:5-13`) + `workflow_call` (`:15`) | arm64 | **`simular_ui.sh` + Maestro** (`:48-49`) |
+| `cd-ios-phone.Ejemplo_Dialer.yml` | `Phone/Ejemplo_Maui_Dialer` (`:36-39`) | `com.ejemplos.phone.dialer` (`:34`) | `workflow_call` | arm64 | `simular.sh` |
+| `cd-ios-phone.Ejemplo_DirectCall.yml` | `Phone/Ejemplo_Maui_DirectCall` (`:36-39`) | `com.ejemplos.phone.directcall` (`:34`) | `workflow_call` | arm64 | `simular.sh` |
+| `cd-ios-printer.Ejemplo_MotorDSL.yml` | `Printer/Ejemplo_MotorDSL` (`:36-39`) | `com.ejemplos.devices.MotorDSL` (`:34`) | `workflow_call` | arm64 | `simular.sh` |
+| `cd-ios-qr.BSM.LectorQR.yml` | `QR/BSM.LectorQR` (`:38-41`) | `…qr.barcodescanner_mobile_maui.simple` (`:36`) | `workflow_call` | **x64** (`:45`) | `simular.sh` (`:48`) |
+| `cd-ios-qr.BSM.LectorQR_Dialog.yml` | `QR/BSM.LectorQR_Dialog` (`:38-41`) | `…qr.barcodescanner_mobile_maui.dialog` (`:36`) | `workflow_call` | **x64** (`:45`) | `simular.sh` |
+| `cd-ios-qr.BSN.LectorQR.yml` | `QR/BSN.LectorQR` | `…qr.barcodescanner_native_maui.simple` (`:36`) | `workflow_call` | arm64 (`:44`) | `simular.sh` |
+| `cd-ios-qr.BSN.LectorQR_Dialog.yml` | `QR/BSN.LectorQR_Dialog` | `…qr.barcodescanner_native_maui.dialog` (`:36`) | `workflow_call` | arm64 | `simular.sh` |
+| `cd-ios-qr.CS.LectorQR.yml` | `QR/CS.LectorQR` | `…qr.camerascanner_maui.simple` (`:36`) | `workflow_call` | arm64 | `simular.sh` |
+| `cd-ios-qr.CS.LectorQR_Dialog.yml` | `QR/CS.LectorQR_Dialog` | `…qr.camerascanner_maui.dialog` (`:36`) | `workflow_call` | arm64 | `simular.sh` |
+| `cd-ios-qr.ZN.LectorQR.yml` | `QR/ZN.LectorQR` | `…qr.zxing_net_maui.simple` (`:36`) | `workflow_call` | arm64 | `simular.sh` |
+| `cd-ios-qr.ZN.LectorQR_Dialog.yml` | `QR/ZN.LectorQR_Dialog` | `…qr.zxing_net_maui.dialog` (`:36`) | `workflow_call` | arm64 | `simular.sh` |
+| `cd-ios-qr.Ejemplo_LectorQR_Dialog.yml` | `QR/Ejemplo_LectorQR_Dialog` (`:38-41`) — **el proyecto no existe** en `Ejemplos_Devices/QR/` | `com.ejemplos.devices.qr.dialog` (`:36`) | `workflow_call` | arm64 | `./Utils/simular.sh` (`:422-423`) — **ruta inexistente** |
 
-### 4.2 La variante `Integrada`
+Los `.yml` con `push:` comentado lo tienen en `:5-13` (bloque `branches: main` + `paths` de la carpeta del ejemplo). No hay workflow orquestador que los llame: sin descomentar el `push:`, solo corren por `workflow_call` desde fuera. El `.slnx` lista 18 de los 19 archivos de la carpeta workflows (`Ejemplos_Devices/Ejemplos_Devices.slnx:204-224`); el ausente es `cd-ios-qr.Ejemplo_LectorQR_Dialog.yml`.
 
-`cd-ios-Integrada.Ejemplo_Maui_Hibrida.yml` agrega sobre el pipeline estándar:
+## 3. La plantilla (una sola descripción)
 
-| Diferencia | Detalle |
-|------------|---------|
-| `push` activo | Filtrado a la carpeta de la app híbrida |
-| `SCRIPT_SIMULATOR` | `./Utilities/simular_ui.sh` en vez de `simular.sh` |
-| `MAESTRO_VERSION: '1.41.0'` | Instala Maestro con `curl -Ls https://get.maestro.mobile.dev \| bash` y lo agrega al `PATH` |
-| Boot del simulador **por GUI** | Se abre `Simulator.app` para que levante BackBoard/SpringBoard: **el boot headless por `simctl` se cuelga en «Waiting on BackBoard»**. Fire-and-forget, con timeout y reintento |
-| Evidencia | `recorrido.mp4` (video del recorrido automatizado) en vez del GIF |
-| Pre-warm | La app se pre-carga antes de grabar, para que el arranque en frío (Release + WebView remoto) no quede en el video |
+Referencia: `cd-ios-gps.Ejemplo_GPS.yml` (437 líneas). Las demás repiten la secuencia con desplazamientos de líneas.
 
-### 4.3 La variante x64 / Rosetta
+### 3.1 Bloque `env`
 
-Dos workflows —`cd-ios-qr.BSM.LectorQR.yml` y `cd-ios-qr.BSM.LectorQR_Dialog.yml`, los de `BarcodeScanner.Mobile.Maui`— usan `RUNTIME_IDENTIFIER_SIMULATOR: iossimulator-x64` en vez de `arm64`. Es exactamente el caso que documenta el estudio de NuGets: **ML Kit no publica slice de simulador arm64**, así que hay que compilar x64 y ejecutar bajo Rosetta ([índice 02 §2](02_QR.md)).
+| Variable | Valor | Línea |
+|---|---|---|
+| `XCODE_VERSION` / `_SHORT` | `26.0` (alternativa `26.3` comentada `:18-21`) | `:23-24` |
+| `XCODE_FILE_INSTALLER` | `Xcode_26_Universal.xip` | `:25` |
+| `XCODE_GOOGLE_FILE_INSTALLER_ID` | id de archivo de Google Drive (no es secreto; ver la línea) | `:26` |
+| `DOTNET_VERSION` | `10.0.300` (antes `10.0.102`, comentado `:28`) | `:29` |
+| `DOTNET_TARGET_VERSION` | `net10.0` | `:30` |
+| `DOTNET_VERSION_WORKLOAD` | `10.0.100` | `:31` |
+| `PACKAGE_NAME`, `SOLUTION_FOLDER`, `PROJECTS_ROOT`, `PROJECT_NAME`, `PROJECT_FILE` | datos del proyecto | `:34-39` |
+| `RUNTIME_IDENTIFIER_SIMULATOR`, `BUILD_CONFIG_SIMULATOR`, `DEVICE_SIMULATOR` | `iossimulator-arm64`, `Release`, `iPhone 17 Pro Max` | `:42-44` |
+| `DOTNET_WORKLOAD_INSTALL_ADDITIONAL_ARGS`, `MD_APPLE_SDK_ROOT` | `--ios-simulator-runtime=26.0`, `/Applications/Xcode_26.0.app` | `:46-47` |
 
-Consecuencias en el pipeline, activadas por condición sobre esa variable:
-- La descarga del runtime usa `-architectureVariant universal`.
-- Se instala Rosetta 2 (`softwareupdate --install-rosetta --agree-to-license`) para que `simctl launch` pueda ejecutar el binario x86_64.
+### 3.2 Pasos
 
-`Pipelinea-Version.md` registra la otra consecuencia: por eso los proyectos condicionan `AdamE.Google.iOS.GoogleUtilities` 8.1.0.3 a `'$(RuntimeIdentifier)' == 'iossimulator-x64'` — «porque la versión 9.0.1 no tiene esa librería para x64».
+| # | Grupo | Qué hace | Líneas (`cd-ios-gps.Ejemplo_GPS.yml`) |
+|---|---|---|---|
+| 1 | Runner | imprime arquitectura/CPU; `actions/checkout@v4` | `:55-65` |
+| 2 | Xcode | `pipx install gdown`; baja el `.xip` de Drive; `xip --expand`; mueve a `/Applications/Xcode_26.0.app`, borra los otros Xcode, `xcode-select --switch`, `-runFirstLaunch`, acepta licencia | `:84-122` |
+| 3 | Simulador | `xcrun simctl list runtimes`; `sudo xcodebuild -downloadPlatform iOS`; `simctl boot` del dispositivo | `:133-151` |
+| 4 | .NET | borra `~/.dotnet`, instala con `dotnet-install.sh --version 10.0.300`, agrega a `GITHUB_PATH` | `:155-189` |
+| 5 | Workloads | `dotnet workload install ios maui maui-ios --version 10.0.100` | `:193-214` |
+| 6 | Rutas | exporta `SOLUTION_PATH`, `PROJECT_PATH`, `PLIST_PATH` | `:218-238` |
+| 7 | Versionado | lee `CFBundleShortVersionString`/`CFBundleVersion` del `Info.plist` → `APP_VERSION_BUILD`; sello `VERSION_FECHA` | `:242-259` |
+| 8 | Manifest | `plutil -lint` del `Info.plist` | `:263-267` |
+| 9 | Build | `dotnet clean`; (ApiKeys, §4); `restore` con TFM+RID; `build -c Release -f net10.0-ios -p:RuntimeIdentifier=… -p:LinkMode=SdkOnly -p:EnableCodeSigning=false -p:CodesignKey="-"` con `Entitlements.Development.plist` | `:271-333` |
+| 10 | Firma | firma ad-hoc «robusta» (§5) y verificación de entitlements | `:337-380` |
+| 11 | Artefacto app | `zip -ry <fecha>_<short>_<build>_<package>.app.zip`; `upload-artifact@v4`, `retention-days: 1` | `:384-403` |
+| 12 | Simulación | `brew install ffmpeg`; `Utilities/simular.sh` con `continue-on-error: true`, `timeout-minutes: 30` | `:407-419` |
+| 13 | Evidencia | artefacto `grabacion-simulador` (`evidencia_app.gif`, `frames/`, `debug_logs/`, `app_stream_full.txt`, `/tmp/app_stderr.txt`), `retention-days: 1` | `:421-433` |
+| 14 | Limpieza | step `Clean up keychain…` (`if: always()`): en esta plantilla solo hace `echo` | `:435-438` |
 
-## 5. Versionado del pipeline
+### 3.3 Por qué se instala Xcode a mano
 
-Los workflows de QR y el de Integrada llevan `PIPELINE_VERSION` con formato `AAAAMMDDhhmm_ejemplos`:
+El runner `macos-15` no garantiza la versión de Xcode que exigen los workloads iOS de .NET 10 (`ios 26.0.11017/10.0.100`, salida pegada en `cd-ios-gps.Ejemplo_GPS.yml:202-207`); por eso el pipeline reemplaza todos los Xcode del runner (`:113`) por un `.xip` fijo bajado de Google Drive. Es la dependencia externa más frágil del CI (si el archivo de Drive cambia de permisos, todos los pipelines caen en el paso 2). Contexto en [build-and-run §Observaciones](../../Ejemplos_Maui_Devices-docs/docs/07-operations/build-and-run.md#observaciones).
 
-| Versión | Workflows |
-|---------|-----------|
-| `202606300809_ejemplos` | BSM.LectorQR, BSN.LectorQR, CS.LectorQR{,_Dialog}, ZN.LectorQR{,_Dialog}, Ejemplo_LectorQR_Dialog |
-| `202606300822_ejemplos` | BSM.LectorQR_Dialog |
-| `202606301040_ejemplos` | BSN.LectorQR_Dialog, **Integrada** |
+## 4. Variantes respecto de la plantilla
 
-Los 8 workflows de camera, gps, phone y printer **no declaran `PIPELINE_VERSION` ni `SCRIPT_SIMULATOR`**: son de la generación anterior, invocan `./Utilities/simular.sh` con la ruta escrita a mano en el paso de grabación. Es la deuda visible del dominio: la estandarización llegó hasta QR e Integrada.
+| Variante | Workflows | Diferencia | Cita |
+|---|---|---|---|
+| **ApiKeys activo** | solo `cd-ios-gps.Ejemplo_GPS.yml` | step `PRE-BUILD. Generar ApiKeys.cs desde secreto`: `sed` sobre `Services/ApiKeys.cs.template` con `secrets.GOOGLE_MAPS_API_KEY` | `cd-ios-gps.Ejemplo_GPS.yml:279-285`; plantilla `Ejemplos_Devices/GPS/Ejemplo_Maui_GPS/Services/ApiKeys.cs.template` |
+| ApiKeys comentado | 4 camera, 2 phone, printer | mismo step con `#` | p. ej. `cd-ios-phone.Ejemplo_Dialer.yml:279-285` |
+| ApiKeys ausente | 9 QR, Integrada | no existe el step | — |
+| **Sello `PIPELINE_VERSION`** | 9 QR + Integrada | `202606300809_ejemplos` (mayoría), `202606300822` (`BSM.LectorQR_Dialog`), `202606301040` (`BSN.LectorQR_Dialog`, Integrada) | `cd-ios-qr.*.yml:18`, `cd-ios-Integrada.Ejemplo_Maui_Hibrida.yml:18`; bitácora `.github/workflows/Pipelinea-Version.md:1-15` |
+| **x64 + Rosetta** | `BSM.LectorQR`, `BSM.LectorQR_Dialog` | RID `iossimulator-x64`; runtime con `-architectureVariant universal`; step Rosetta condicionado a x64 (presente en todos los QR e Integrada, activo solo en BSM) | `cd-ios-qr.BSM.LectorQR.yml:45,151,424-427` |
+| `SCRIPT_SIMULATOR` parametrizado | 9 QR (no el legado), Integrada | el paso de simulación ejecuta `${{ env.SCRIPT_SIMULATOR }}` y copia `/tmp/app_stderr.txt` a `debug_logs/`; en QR queda además el bloque viejo comentado | `cd-ios-qr.BSM.LectorQR.yml:48,435-450` |
+| Step `CPY.` comentado | QR, Integrada | copia de recursos, deshabilitada | `cd-ios-qr.BSM.LectorQR.yml:258`, `cd-ios-Integrada.Ejemplo_Maui_Hibrida.yml:265` |
+| **`upload-artifact@v5`** | `BSM.LectorQR_Dialog`, `BSN.LectorQR_Dialog`, Integrada | el resto usa `@v4` | `cd-ios-qr.BSM.LectorQR_Dialog.yml:413,454` |
+| **Integrada: e2e con Maestro** | `cd-ios-Integrada.Ejemplo_Maui_Hibrida.yml` | `push` activo (`:5-13`); `MAESTRO_VERSION: '1.41.0'` (`:49`); precalienta Simulator.app por GUI antes del boot (`:163-171`); instala Maestro con `get.maestro.mobile.dev` (`:438-443`); corre `simular_ui.sh` (`:445-455`); sube `recorrido.mp4` + `debug_logs/` + `app_stream_full.txt` (`:457-466`); no instala ffmpeg; la limpieza borra un keychain si existe (`:468-473`) | ídem |
+| **Configuración vacía** | `cd-ios-qr.BSM.LectorQR.yml` | `BUILD_CONFIG_SIMULATOR` está comentado (`:46`) pero se usa en `-c ${{ env.BUILD_CONFIG_SIMULATOR }}` (`:330`) y en `BASE_PATH` (`:344`) | ver §9 |
+| **Legado roto** | `cd-ios-qr.Ejemplo_LectorQR_Dialog.yml` | apunta a un proyecto inexistente y a `./Utils/simular.sh` | `:38-41,422-423` |
 
-`Pipelinea-Version.md` es la bitácora: `202606261239` («primera versión de yml estandarizada, incorpora mejoras en las rutas relativas») y `202606262101` (Rosetta + parametrización del script de simulación).
+La bitácora `Pipelinea-Version.md:2-9` explica el x64: la librería de QR (ML Kit) obliga a referenciar `AdamE.Google.iOS.GoogleUtilities 8.1.0.3` solo con RID `iossimulator-x64`. Justificación larga: `Ejemplos_Devices/Docs/otros/propuesta-rosetta.md`; decisión de preferir BSN: [ADR-0004](../../Ejemplos_Maui_Devices-docs/docs/04-decisions/0004-qr-bsn-recomendada-ios.md).
 
-## 6. La simulación y la evidencia
+## 5. Firma
 
-| Script | Usa | Produce |
-|--------|-----|---------|
-| `Utilities/simular.sh` (332 l.) | 17 workflows | `evidencia_app.gif`, `frames/`, `debug_logs/`, `app_stream_full.txt` |
-| `Utilities/simular_ui.sh` (233 l.) | Integrada | `recorrido.mp4` + logs |
+- **Sin certificados ni perfiles de aprovisionamiento.** El build desactiva la firma (`-p:EnableCodeSigning=false -p:CodesignProvision="" -p:CodesignKey="-"`, `cd-ios-gps.Ejemplo_GPS.yml:313-316`) y luego firma **ad-hoc** a mano: `xattr -cr`, borra `_CodeSignature`, firma cada `*.dll`/`*.dylib`/`*.aotdata*`, el binario principal con `Platforms/iOS/Entitlements.Development.plist` y el bundle, todo con `codesign --sign "-"` (`:337-369`).
+- **Secretos referenciados en workflows:** únicamente `GOOGLE_MAPS_API_KEY` (activo en GPS, comentado en 7 más). No hay secretos de firma (`P12`, perfiles, keychain): el step `Clean up keychain…` es un resto de plantilla.
+- Mecanismo local de la clave: `.gitignore:421` excluye `**/Services/ApiKeys.cs`; se versiona solo `ApiKeys.cs.template`. Decisión: [ADR-0007](../../Ejemplos_Maui_Devices-docs/docs/04-decisions/0007-secretos-fuera-del-repo.md). La clave de Maps hardcodeada fuera de este mecanismo ya está relevada (GAP-REPORT S-01).
 
-`simular.sh` recibe `APP_PATH`, `PACKAGE_NAME` y `DEVICE_SIMULATOR` por entorno; resuelve el UUID del simulador con `xcrun simctl list devices`, lo arranca si no está *booted*, instala y lanza la app, graba y arma el GIF con `ffmpeg`. Trae un `run_with_timeout` propio basado en `perl -e "alarm"` porque **macOS no tiene el comando `timeout`**.
+## 6. Artefactos
 
-El paso de grabación es `continue-on-error: true` con `timeout-minutes: 30`: la evidencia es deseable, no bloqueante.
+| Artefacto | Nombre | Contenido | Retención |
+|---|---|---|---|
+| App | `<VERSION_FECHA>_<short>_<build>_<PACKAGE_NAME>.app.zip` | `.app` firmado ad-hoc para simulador | 1 día |
+| Evidencia (`simular.sh`) | `grabacion-simulador` | `evidencia_app.gif`, `frames/`, `debug_logs/`, `app_stream_full.txt` | 1 día |
+| Evidencia (`simular_ui.sh`) | `grabacion-simulador` | `recorrido.mp4`, `debug_logs/`, `app_stream_full.txt` | 1 día |
 
-### 6.1 Pruebas end2end sobre la UI real
+No hay `.ipa` ni distribución (TestFlight/tienda): gap declarado en el GAP-REPORT §2.
 
-`Utilities/end2end/*.yaml` son flujos de **Maestro** («dedo virtual») que tocan controles **nativos por su texto visible** — sin `AutomationId` ni inspección del WebView, porque los botones son controles MAUI y su texto se expone como accessibility label en iOS. El `appId` se inyecta con `maestro test -e APP_ID=<bundle>`.
+## 7. Simulación y Maestro (`Utilities/`)
 
-| Flujo | Para |
-|-------|------|
-| `com.ejemplos.devices.integrada.hibrida.yaml` (81 l.) | La app híbrida: `[Volver] [Geo Pos] [Llamar] [Leer QR]` |
-| `com.ejemplos.devices.gps.yaml` (35 l.) | `Ejemplo_Maui_GPS` |
-| `com.ejemplos.devices.qr.dialog.yaml` (35 l.) | El lector QR en modo diálogo |
+| Archivo | Líneas | Qué hace | Usado por |
+|---|---|---|---|
+| `Utilities/simular.sh` | 332 | resuelve el UUID del simulador (`:14`), lo bootea con espera, desinstala/instala la app (`:123,140`), concede notificaciones (`:144`), lanza con `--stderr=/tmp/app_stderr.txt` (`:184`), toma screenshots `frames/f<i>.png` (`:209`) y arma `evidencia_app.gif` con `ffmpeg` (`:246-249`) | 16 workflows |
+| `Utilities/simular_ui.sh` | 233 | igual arranque, pero graba con `simctl io recordVideo --codec h264` (`:167`) y ejecuta el flujo Maestro `end2end/${PACKAGE_NAME}.yaml` (`:28,177`); si Maestro no está, graba solo el arranque (`:180`). No modifica `simular.sh` (`:6-7`) | Integrada |
+| `Utilities/end2end/com.ejemplos.devices.integrada.hibrida.yaml` | 81 | recorrido de la híbrida: `launchApp`, espera activa, toca «Geo Pos», «Llamar», «Leer QR», «Volver» por texto y por coordenada | `simular_ui.sh` vía Integrada |
+| `Utilities/end2end/com.ejemplos.devices.gps.yaml` | 35 | flujo «Geo Posicionar / Llamar / Leer QR / back» | **ningún workflow** (GPS usa `simular.sh`) |
+| `Utilities/end2end/com.ejemplos.devices.qr.dialog.yaml` | 35 | **idéntico byte a byte** al de GPS | ningún workflow (y su proyecto no existe) |
+| `Utilities/download_sectigo.ps1` | 214 | descarga intermedios + raíz (nunca la hoja) del host TLS a `Integrada/Ejemplo_Maui_Hibrida/Platforms/Android/Resources/raw` como `.pem` (`:62,145-169`); el nombre es histórico: la CA real es Let's Encrypt/ISRG (`:2-5`) | manual; ver [ADR-0008](../../Ejemplos_Maui_Devices-docs/docs/04-decisions/0008-trust-anchors-embebidos-webview.md) |
 
-El YAML de la híbrida documenta su propia procedencia y sus límites: los textos fueron **verificados contra dispositivo real** por `adb uiautomator dump` (Motorola Moto G42, Android 1080 px); «Geo Pos» corrige un «Geo Posicionar» anterior que **no matcheaba**; en Android a 1080 px la barra de 4 botones no entra a lo ancho y «Leer QR» queda recortado, pero el target del CI es el simulador iOS (iPhone 17 Pro Max), más ancho. Usa `stopApp: false` para no reiniciar la app y no grabar el arranque en frío.
+Bitácoras de corridas reales: `.github/workflows/Analisis/log_1.md` (2110 líneas, build x64 del QR legado) y `log_2.md` (102 líneas, paso de simulación con `PIPELINE_VERSION 202606262101`). El diseño de flujos está en el tool-prompt `PROMPTs/Implementaciones/Crear-Flow-End2End-App.md` del repo de documentación.
 
-También anota lo que es esperado y no un fallo: en el simulador la cámara del lector QR **se ve negra** (no hay cámara real) y el overlay de GPS puede pasar a capa de error por falta de ubicación — igual sirven como evidencia de navegación.
+## 8. Build local y scripts de arranque
 
-## 7. La solución y el arranque local
+| Archivo | Qué hace | Cita |
+|---|---|---|
+| `Ejemplos_Devices/scripts/Ejemplo_Maui_GPS_launch.bat` | agrega `adb` de `%ProgramFiles(x86)%\Android\android-sdk\platform-tools` al PATH, exige dispositivo conectado y corre `dotnet build <csproj> -f net10.0-android -t:Run` | `:6-7,11-19,30-37` |
+| `Ejemplos_Devices/scripts/Ejemplo_Photo_MediaPicker_launch.bat` | idéntico salvo el `.csproj` (`Camera\Ejemplo_Photo_MediaPicker`); el banner sigue diciendo GPS | `:6,23` |
+| `Ejemplos_Devices/scripts/GetEnviromentVersion.bat` | `dotnet --version` + `dotnet workload list --verbosity detailed` | `:1-3` |
+| `vs.bat` | `code .` (6 bytes, sin salto de línea) | `vs.bat:1` |
+| `.github/workflows/Readme.md` | salidas de `dotnet workload` de la máquina local (SDK/workloads `10.0.102`) usadas para configurar los yml | `:1-53` |
 
-`Ejemplos_Devices/Ejemplos_Devices.slnx` es el formato **`.slnx`** (XML) de solución. Agrupa **23 proyectos** en carpetas por dominio y, además, **enlaza los `.md` de documentación y los `.yml` de workflows** como archivos de solución (carpetas `/Docs/`, `/github.workflow/`, `/.Utilities/`), de modo que la documentación se navega desde el IDE.
+Sin `.bat`, cualquier otro proyecto se corre igual: `dotnet build <csproj> -f net10.0-android -t:Run`. Pasos y errores comunes: [build-and-run §Ejecución local](../../Ejemplos_Maui_Devices-docs/docs/07-operations/build-and-run.md#ejecución-local-android-físico); primer arranque: [developer-setup](../../Ejemplos_Maui_Devices-docs/docs/08-onboarding/developer-setup.md).
 
-⚠️ **`Ejemplo_Maui_Hibrida.Tests` no está en la solución**: existen 24 `.csproj` en el árbol y el `.slnx` referencia 23. Sumado a que ningún workflow la ejecuta, la suite queda fuera tanto del IDE como del CI.
+### 8.1 Proyectos sin pipeline
 
-⚠️ Tres rutas del `.slnx` apuntan a archivos que **no existen** (verificado): `GPS/Docs_GPS/Readme.md` (la carpeta real es `GPS/Ejemplo_Docs_GPS/`), `Printer/Ejemplo_Docs_Maps/Borradores/Readme.md` (mezcla Printer con Maps) y la carpeta `/Docs/web-hibrida/` está declarada vacía aunque `Docs/web-hibrida/` tiene 5 documentos.
+| Proyecto | En `.slnx` | Motivo visible |
+|---|---|---|
+| `Camera/Ejemplo_Photo_MediaPicker` | `:37` | solo `.bat` Android |
+| `Maps/Ejemplo_Maui_Mapas` | `:74` | — |
+| `Printer/Ejemplo_MotorDSL_Dialog`, `Printer/Ejemplo_ThermalPrinter` | `:93,96` | — |
+| `Red/Ejemplo_Maui_Connectivity` | `:188` | — |
+| `Integrada/Ejemplo_ws_Blazor` | `:68` (sin `<Deploy/>`) | web, no móvil |
+| `Integrada/Ejemplo_Maui_Hibrida.Tests` | **no está** en el `.slnx` | ningún workflow ejecuta `dotnet test` |
 
-`vs.bat` en la raíz contiene una sola línea: `code .`
+## 9. Solución `.slnx` y `.gitignore`
 
-`Ejemplos_Devices/scripts/` trae tres `.bat` de conveniencia para Windows: `Ejemplo_Maui_GPS_launch.bat`, `Ejemplo_Photo_MediaPicker_launch.bat` y `GetEnviromentVersion.bat` (documentado en `Docs/otros/GetEnviromentVersion.md`).
+`Ejemplos_Devices/Ejemplos_Devices.slnx` (225 líneas): carpetas virtuales `/.Utilities/` (`:2-11`), `/Docs/` (`:12-34`), `/Ejemplos/<Categoría>/` con cada `.csproj` y `<Deploy />` (`:35-194`), `/Ejemplos/Utils/` (`:195-203`) y `/github.workflow/` (`:204-224`). A HEAD, tras `85384c2`:
 
-## 8. El entorno de referencia
+| Línea | Entrada | Estado |
+|---|---|---|
+| `:16-18` | `Docs/Certificados-SSL/*` (carpeta virtual `/Docs/certificado-ssl/`) | corregida en `85384c2`; existe |
+| `:34` | `/Docs/web-hibrida/` | carpeta **vacía** en el `.slnx`; en disco hay 5 `.md` |
+| `:62` | `GPS/Docs_GPS/Readme.md` | **no existe** (la carpeta es `GPS/Ejemplo_Docs_GPS/`) |
+| `:111` | `Printer/Ejemplo_Docs_Maps/Borradores/Readme.md` | **no existe** |
+| `:101,108` | `Printer/Ejemplo_Docs_Printer/Readme.md` | listado dos veces en carpetas distintas |
+| `:85,90` | Ids `016990c8-…-603c` / `…-603d` | GUIDs consecutivos hechos a mano (no es error) |
 
-`.github/workflows/Readme.md` deja registrado el estado de la máquina de desarrollo, que es lo que el YAML replica:
+`.gitignore` (421 líneas): plantilla estándar de Visual Studio (`bin/`, `obj/`, `.vs/`, `*.user`, `*.env`, …) más, al final, `**/Services/ApiKeys.cs` (`:421`).
 
-| Workload | Versión del manifiesto |
-|----------|------------------------|
-| `android` | 36.1.12/10.0.100 |
-| `ios`, `maccatalyst` | 26.2.10191/10.0.100 |
-| `maui-android`, `maui-windows` | 10.0.1/10.0.100 |
-| `wasm-tools` | 10.0.102/10.0.100 |
+## 10. Divergencias con la prosa (código a HEAD manda)
 
-`dotnet --version` y `dotnet workload --version`: **10.0.102** (el CI instala 10.0.300).
+| Prosa | Código a HEAD |
+|---|---|
+| Runbook: «todos declaran únicamente `workflow_call`» y matriz `gps` con `cd-ios-gps.Ejemplo_Maui_Hibrida.yml` | el archivo es `cd-ios-Integrada.Ejemplo_Maui_Hibrida.yml` y tiene `push` activo (`:5-13`); usa Maestro/MP4, no GIF |
+| ADR-0006 y runbook: «evidencia GIF» como única | Integrada produce `recorrido.mp4` |
+| Runbook: 9 workflows QR funcionales | uno (`Ejemplo_LectorQR_Dialog`) apunta a un proyecto y un script inexistentes |
+| Runbook: el paso Xcode usa `cd-ios-qr.CS.LectorQR.yml#L91–L131` como fuente | los números siguen valiendo para QR; en camera/gps/phone/printer el mismo bloque está en `:84-122` |
 
-## 9. Observaciones
+## Ver también
 
-- **El pipeline instala su propio Xcode desde Google Drive** (`gdown` + ID de archivo público) en vez de usar el del runner o `xcode-select` sobre uno preinstalado. Es lo que permite fijar Xcode 26.0, pero ata el CI a la disponibilidad de ese archivo en Drive.
-- Cada job **borra los Xcode del runner** (`sudo rm -rf /Applications/Xcode*.app`) y `/Users/runner/.dotnet` antes de instalar los suyos.
-- Los pipelines **solo compilan y ejecutan para el simulador iOS**. No hay build de Android en CI, pese a que Android es la plataforma principal de casi todos los ejemplos (y la única en la que funciona la impresión Bluetooth).
-- No hay firma con certificado real ni publicación a TestFlight: todo es firma ad-hoc y artefacto `.app.zip` con **1 día de retención**.
-- `.github/workflows/Analisis/log_1.md` y `log_2.md` guardan logs de análisis del pipeline.
-
-## 10. Fuentes
-
-| Ruta | Contenido |
-|------|-----------|
-| `.github/workflows/cd-ios-qr.BSN.LectorQR.yml` | Workflow de referencia de la generación estandarizada (471 líneas) |
-| `.github/workflows/cd-ios-Integrada.Ejemplo_Maui_Hibrida.yml` | La variante con Maestro, boot por GUI y video |
-| `.github/workflows/Pipelinea-Version.md` | Bitácora de versiones del pipeline y el porqué de Rosetta |
-| `.github/workflows/Readme.md` | Versiones de workloads de la máquina de desarrollo |
-| `Utilities/simular.sh`, `simular_ui.sh` | Arranque del simulador, instalación, lanzamiento y grabación |
-| `Utilities/end2end/*.yaml` | Los tres flujos Maestro y sus notas de verificación |
-| `Ejemplos_Devices/Ejemplos_Devices.slnx` | Estructura de la solución y enlaces a documentación |
+- [00_MASTER-INDEX](00_MASTER-INDEX.md) · [02_QR](02_QR.md) (BSM/x64) · [08_App-Hibrida-Integrada](08_App-Hibrida-Integrada.md) (app que corre Maestro) · [10_Documentacion-Transversal](10_Documentacion-Transversal.md)
+- [ADR-0006](../../Ejemplos_Maui_Devices-docs/docs/04-decisions/0006-ci-ios-adhoc-android-local.md) · [ADR-0007](../../Ejemplos_Maui_Devices-docs/docs/04-decisions/0007-secretos-fuera-del-repo.md) · [ADR-0004](../../Ejemplos_Maui_Devices-docs/docs/04-decisions/0004-qr-bsn-recomendada-ios.md)
+- [build-and-run](../../Ejemplos_Maui_Devices-docs/docs/07-operations/build-and-run.md) · [developer-setup](../../Ejemplos_Maui_Devices-docs/docs/08-onboarding/developer-setup.md) · [GAP-REPORT](../../Ejemplos_Maui_Devices-docs/GAP-REPORT.md)
