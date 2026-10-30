@@ -3,6 +3,35 @@
 Cambios notables de la documentación de `Ejemplos_Maui_Devices` (`Ejemplos_Maui_Devices.Documentacion`).
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
+## [2026-10-29] — ia-db v2.0: regeneración completa tras la caída de i7infra
+
+**Regeneración desde cero** de la `ia-db` con `PROMPTs/Indexado/Crear-Indexado.md`
+(→ `Iniciar-Indexado.md` + Profile `Knowledge-Indexing`). El 2026-10-28 quedaron dos
+regeneraciones v1.0 distintas, una en hpdev (commiteada sin subir) y otra en i7infra (sin
+commitear); el PO decidió regenerar en lugar de elegir una. Ambas quedan a salvo en las ramas
+`rescate/hpdev-ia-db-2026-10-28` y `rescate/i7infra-ia-db-2026-10-28`.
+
+Origen indexado: HEAD local **`cc80ce1`** (2026-10-28) de `Ejemplos_Maui_Devices`, 2 commits
+adelante de `origin/main` sin subir (`85384c2`, `cc80ce1`: mayúsculas de rutas en el `.slnx` y en
+`Docs/web-hibrida/maui-hibrido.md`).
+
+### Modificado
+
+- **`ia-db/` reemplazada entera**: `README.md` (entrada única + manifiesto v2.0) y 11 índices
+  `00_MASTER-INDEX` … `10_Documentacion-Transversal`, con la misma numeración de dominios que la
+  versión anterior. Toda afirmación cita `ruta:línea`; la prosa de `Ejemplos_Maui_Devices-docs/`,
+  `Guias/` y `Analisis/` se enlaza, no se duplica. Sin valores de claves.
+- **`ia-db/indexes/08_App-Hibrida-Integrada.md`** refleja el puente con clasificación separada de
+  la ejecución (`0ef370b`) y marca la prosa que todavía describe el despacho anterior.
+- **Divergencias registradas (⚠️)**: workflow `cd-ios-qr.Ejemplo_LectorQR_Dialog.yml` huérfano,
+  rutas muertas en el `.slnx`, tests de la híbrida fuera de la solución y del CI, `ZN.LectorQR`
+  que usa `CameraMaui`, clave de Google Maps en texto plano en el manifest de `Ejemplo_Maui_Mapas`.
+
+### Corregido
+
+- **`PROMPTs/Indexado/Crear-Indexado.md`**: indexa `/APLICADA/2026/EJEMPLOS/…` (traído de
+  `b606738`) y corrige la errata `Documentacionn/ia-db` del destino.
+
 ## [2026-09-01] — Tool-prompts de indexado: carpeta `Indexado/` y rutas al nuevo layout
 
 Sólo `PROMPTs/`; la `ia-db` y la documentación no se tocaron. El disparador es la reorganización

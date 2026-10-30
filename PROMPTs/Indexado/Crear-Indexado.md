@@ -7,4 +7,4 @@
 
 ---
 
-ultracode Leer y ejecutar `/IA/PROMPTs/IA.Prompts/Tool-Prompts/Indexado-Documentado/Iniciar-Indexado.md` de `/APLICADA/2026/EJEMPLOS/Ejemplos_Maui_Devices` y deja la indexación en `/APLICADA/2026/EJEMPLOS/Ejemplos_Maui_Devices.Documentacionn/ia-db`
+ultracode Leer y ejecutar `/IA/PROMPTs/IA.Prompts/Tool-Prompts/Indexado-Documentado/Iniciar-Indexado.md` de `/APLICADA/2026/EJEMPLOS/Ejemplos_Maui_Devices` y deja la indexación en `/APLICADA/2026/EJEMPLOS/Ejemplos_Maui_Devices.Documentacion/ia-db`
